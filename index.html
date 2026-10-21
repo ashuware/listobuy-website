@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ListoBuy POS - Complete Customer & Shopkeeper Ecosystem</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-navy: #0F172A;
+            --secondary-navy: #1E293B;
+            --accent-green: #22C55E;
+            --accent-green-hover: #16A34A;
+            --bg-light: #F8FAFC;
+            --text-muted: #64748B;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif, system-ui;
+            background-color: var(--bg-light);
+            color: #334155;
+            line-height: 1.6;
+            scroll-behavior: smooth;
+        }
+
+        header {
+            background-color: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            color: white;
+            padding: 18px 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .logo span {
+            color: var(--accent-green);
+        }
+
+        nav a {
+            color: #CBD5E1;
+            text-decoration: none;
+            margin-left: 25px;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: color 0.2s ease;
+        }
+
+        nav a:hover {
+            color: white;
+        }
+
+        .nav-btn {
+            background-color: var(--accent-green);
+            color: white !important;
+            padding: 8px 18px;
+            border-radius: 6px;
+            transition: background 0.2s ease;
+        }
+
+        .nav-btn:hover {
+            background-color: var(--accent-green-hover);
+        }
+
+        .hero {
+            position: relative;
+            background: linear-gradient(rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.88)), 
+                        url('https://images.unsplash.com/photo-1556742049-0a67d552c253?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat;
+            color: white;
+            text-align: center;
+            padding: 130px 20px;
+        }
+
+        .hero-content {
+            max-width: 900px;
+            margin: auto;
+        }
+
+        .badge {
+            background: rgba(34, 197, 94, 0.15);
+            color: #4ADE80;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 20px;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 20px;
+            letter-spacing: -1px;
+            line-height: 1.2;
+        }
+
+        .hero p {
+            color: #94A3B8;
+            font-size: 1.2rem;
+            margin-bottom: 35px;
+            font-weight: 300;
+        }
+
+        .btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .btn {
+            background-color: var(--accent-green);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px rgba(34, 197, 94, 0.3);
+        }
+
+        .btn:hover {
+            background-color: var(--accent-green-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            box-shadow: none;
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: white;
+        }
+
+        .features-container {
+            max-width: 1200px;
+            margin: 80px auto;
+            padding: 0 20px;
+        }
+
+        .section-title {
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto 50px auto;
+        }
+
+        .section-title h2 {
+            font-size: 2.3rem;
+            color: var(--primary-navy);
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .section-title p {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+        }
+
+        .dual-column {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 40px;
+            margin-bottom: 60px;
+        }
+
+        .category-box {
+            background: white;
+            padding: 40px 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+            border: 1px solid #E2E8F0;
+        }
+
+        .category-box h3 {
+            font-size: 1.6rem;
+            color: var(--primary-navy);
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 2px solid #F1F5F9;
+            padding-bottom: 15px;
+        }
+
+        .feature-item {
+            margin-bottom: 20px;
+        }
+
+        .feature-item h4 {
+            color: var(--secondary-navy);
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .feature-item p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .contact-section {
+            background: white;
+            padding: 80px 20px;
+            border-top: 1px solid #E2E8F0;
+            text-align: center;
+        }
+
+        .contact-box {
+            max-width: 650px;
+            margin: auto;
+            background: var(--bg-light);
+            padding: 40px;
+            border-radius: 16px;
+            border: 1px solid #E2E8F0;
+        }
+
+        .contact-box h2 {
+            color: var(--primary-navy);
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .contact-box p {
+            color: var(--text-muted);
+            margin-bottom: 25px;
+        }
+
+        .email-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .email-item {
+            background: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            border: 1px solid #E2E8F0;
+        }
+
+        .email-item span {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .email-item a {
+            color: var(--accent-green);
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1.05rem;
+        }
+
+        .email-item a:hover {
+            text-decoration: underline;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            background: var(--primary-navy);
+            color: #94A3B8;
+            font-size: 0.9rem;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.2rem; }
+            .hero p { font-size: 1.05rem; }
+            nav a:not(.nav-btn) { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">Listo<span>Buy</span></div>
+        <nav>
+            <a href="#features">Platform Features</a>
+            <a href="#contact">Contact Us</a>
+            <a href="#contact" class="nav-btn">Get Started</a>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <div class="hero-content">
+            <span class="badge">🌟 Unified Customer & Shopkeeper Ecosystem</span>
+            <h1>Smart Shopping, Nearby Discovery & Superfast POS</h1>
+            <p>Make List • Send • Buy. Discover nearby stores via PIN code, forward missing items to alternative shops, and manage store inventories seamlessly.</p>
+            <div class="btn-group">
+                <a href="#features" class="btn">Explore Features</a>
+                <a href="#contact" class="btn btn-outline">Contact Support</a>
+            </div>
+        </div>
+    </section>
+
+    <div class="features-container" id="features">
+        <div class="section-title">
+            <h2>Built for Both Customers and Store Owners</h2>
+            <p>Discover how ListoBuy bridges the gap between buyers and local retail businesses with seamless digital workflows.</p>
+        </div>
+
+        <div class="dual-column">
+            <!-- Customer Portal Features -->
+            <div class="category-box">
+                <h3>🛍️ For Customers</h3>
+                <div class="feature-item">
+                    <h4>📍 Find Nearby Stores via PIN Code</h4>
+                    <p>Easily search and discover active ListoBuy shops in your locality by entering your Zip Code / PIN number.</p>
+                </div>
+                <div class="feature-item">
+                    <h4>🔄 Smart List Forwarding</h4>
+                    <p>If certain items are unavailable at your preferred store, instantly forward the missing list to another nearby shop.</p>
+                </div>
+                <div class="feature-item">
+                    <h4>📝 Send Shopping Lists & Check Stock</h4>
+                    <p>Create grocery lists, check item availability in-store, and get price estimates before visiting.</p>
+                </div>
+                <div class="feature-item">
+                    <h4>📦 In-Store Pickup & Flexible Payments</h4>
+                    <p>Pre-order items for quick counter pickup, and choose between secure online pre-paid or cash on pickup.</p>
+                </div>
+            </div>
+
+            <!-- Shopkeeper Portal Features -->
+            <div class="category-box">
+                <h3>🏪 For Shopkeepers</h3>
+                <div class="feature-item">
+                    <h4>📊 Comprehensive Reports</h4>
+                    <p>Track business health effortlessly with detailed Daily, Weekly, and Monthly sales analytics.</p>
+                </div>
+                <div class="feature-item">
+                    <h4>📦 Inventory & Stock Control</h4>
+                    <p>Manage product databases, update prices, track stock quantities, and prevent stockouts easily.</p>
+                </div>
+                <div class="feature-item">
+                    <h4>📒 Shop Khata & Udhar Management</h4>
+                    <p>Maintain customer credit books digitally, track pending dues automatically by mobile number, and settle payments later.</p>
+                </div>
+                <div class="feature-item">
+                    <h4>💬 WhatsApp Bill Sharing</h4>
+                    <p>Instantly send professional digital bills and receipts directly to customer WhatsApp chats.</p>
+                </div>
+                <div class="feature-item">
+                    <h4>🖨️ Bluetooth & Thermal Printing</h4>
+                    <p>Print neat, professional receipts instantly using direct USB or wireless Bluetooth thermal printers.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section class="contact-section" id="contact">
+        <div class="contact-box">
+            <h2>Get in Touch with Us</h2>
+            <p>Have questions, need technical assistance, or want to partner with ListoBuy? Reach out anytime.</p>
+            <div class="email-links">
+                <div class="email-item">
+                    <span>General Inquiries</span>
+                    <a href="mailto:info@listobuy.online">info@listobuy.online</a>
+                </div>
+                <div class="email-item">
+                    <span>Technical Support</span>
+                    <a href="mailto:support@listobuy.online">support@listobuy.online</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <p>&copy; 2026 ListoBuy POS. All rights reserved. Connecting local stores & buyers.</p>
+    </footer>
+
+</body>
+</html>
