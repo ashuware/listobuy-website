@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Live TV Phone Controller</title>
+  <title>अंशी TV - Phone Controller</title>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -11,7 +11,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: #0f0f0f; color: #fff; padding: 16px; max-width: 480px; margin: auto;
     }
-    h2 { font-size: 19px; color: #ffcc00; margin-bottom: 12px; }
+    h2 { font-size: 20px; color: #ffcc00; margin-bottom: 10px; }
     .card {
       background: #1a1a1a; padding: 15px; border-radius: 12px;
       margin-bottom: 14px; border: 1px solid #2a2a2a;
@@ -25,9 +25,10 @@
     .btn-live { background: #e60000; color: #fff; }
     .btn-stop { background: #333; color: #fff; }
     .btn-switch { background: #262626; color: #ddd; margin-top: 10px; padding: 10px; font-size: 13px; }
+    .btn-yt { background: #ff0000; color: #fff; }
     .btn-photo { background: #1f6feb; color: #fff; }
-    .btn-video { background: #2ea043; color: #fff; margin-top: 6px; }
-    .btn-update { background: #ffcc00; color: #000; margin-top: 6px; }
+    .btn-video { background: #2ea043; color: #fff; }
+    .btn-update { background: #ffcc00; color: #000; }
     
     input[type="text"], input[type="file"] {
       width: 100%; padding: 11px; border-radius: 8px; border: 1px solid #333;
@@ -42,41 +43,47 @@
 </head>
 <body>
 
-  <h2>📡 Live TV Phone Controller</h2>
+  <h2>📡 अंशी TV रिमोट कंट्रोल</h2>
   <div id="status"></div>
 
   <!-- 1. Phone Live Camera -->
   <div class="card">
-    <div class="card-title">1. Phone Live Camera</div>
+    <div class="card-title">1. लाइव कैमरा (Live Camera)</div>
     <div class="row-btns">
       <button class="btn-live" onclick="startCamera()">🔴 Go Live</button>
-      <button class="btn-stop" onclick="stopEverything()">⏹ Stop TV</button>
+      <button class="btn-stop" onclick="stopEverything()">⏹ TV बंद करें</button>
     </div>
-    <button class="btn-switch" onclick="switchCamera()">🔄 Switch Front / Back Camera</button>
+    <button class="btn-switch" onclick="switchCamera()">🔄 फ्रंट / बैक कैमरा बदलें</button>
     <video id="camera-preview" muted autoplay playsinline></video>
   </div>
 
-  <!-- 2. Phone Gallery Photo Display -->
+  <!-- 2. YouTube Link Player -->
   <div class="card">
-    <div class="card-title">2. Show Photo from Phone</div>
-    <input type="file" id="photo-input" accept="image/*">
-    <button class="btn-photo" onclick="sendPhotoToTV()">🖼️ Show Photo on TV</button>
+    <div class="card-title">2. YouTube वीडियो / लाइव लिंक चलाएं</div>
+    <input type="text" id="yt-url" placeholder="YouTube लिंक यहाँ पेस्ट करें...">
+    <button class="btn-yt" onclick="playYouTubeOnTV()">▶ YouTube TV पर चलाएं</button>
   </div>
 
-  <!-- 3. Phone Gallery Video Stream -->
+  <!-- 3. Phone Gallery Photo Display -->
   <div class="card">
-    <div class="card-title">3. Play Video from Phone Gallery</div>
+    <div class="card-title">3. फ़ोन से फ़ोटो दिखाएं</div>
+    <input type="file" id="photo-input" accept="image/*">
+    <button class="btn-photo" onclick="sendPhotoToTV()">🖼️ फ़ोटो TV पर दिखाएं</button>
+  </div>
+
+  <!-- 4. Phone Gallery Video Stream -->
+  <div class="card">
+    <div class="card-title">4. फ़ोन गैलरी का वीडियो चलाएं</div>
     <input type="file" id="gallery-video-input" accept="video/*">
-    <button class="btn-video" onclick="streamGalleryVideo()">🎬 Play Phone Video on TV</button>
+    <button class="btn-video" onclick="streamGalleryVideo()">🎬 फ़ोन वीडियो TV पर चलाएं</button>
     <video id="gallery-video-player" controls playsinline></video>
   </div>
 
-  <!-- 4. Logo & Marquee Ticker -->
+  <!-- 5. Marquee Ticker -->
   <div class="card">
-    <div class="card-title">4. Channel Logo & Marquee Text</div>
-    <input type="text" id="marquee-input" placeholder="Niche chalne wala Marquee text likhein...">
-    <input type="file" id="logo-input" accept="image/*" onchange="handleLogo(this)">
-    <button class="btn-update" onclick="updateOverlay()">📺 Update Logo & Marquee</button>
+    <div class="card-title">5. नीचे चलने वाली न्यूज़ पट्टी (Marquee)</div>
+    <input type="text" id="marquee-input" placeholder="ताज़ा ख़बर हिंदी या English में लिखें...">
+    <button class="btn-update" onclick="updateMarquee()">📺 न्यूज़ पट्टी अपडेट करें</button>
   </div>
 
 <script>
@@ -91,7 +98,6 @@
   });
 
   const statusEl = document.getElementById('status');
-  let logoBase64 = '';
   let currentStream = null;
   let currentCall = null;
   let useBackCamera = true;
@@ -107,9 +113,18 @@
       conn.send(payload);
       if (successMsg) setStatus(successMsg);
     });
-    conn.on('error', () => setStatus('⚠️ TV Screen abhi open nahi hai!', true));
+    conn.on('error', () => setStatus('⚠️ TV स्क्रीन अभी खुली नहीं है!', true));
   }
 
+  // YouTube Link bhejna
+  function playYouTubeOnTV() {
+    const url = document.getElementById('yt-url').value.trim();
+    if (!url) return setStatus('पहले YouTube लिंक पेस्ट करें!', true);
+    stopLocalMedia();
+    sendPayload({ youtubeUrl: url }, '▶ YouTube वीडियो TV पर चल रहा है!');
+  }
+
+  // Image compress karke bhejna
   function compressImage(file, maxWidth, callback) {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -130,18 +145,18 @@
 
   function sendPhotoToTV() {
     const file = document.getElementById('photo-input').files[0];
-    if (!file) return setStatus('Pehle koi photo select karein!', true);
+    if (!file) return setStatus('पहले कोई फ़ोटो चुनें!', true);
 
     stopLocalMedia();
-    setStatus('⏳ Photo TV par bhej rahe hain...');
+    setStatus('⏳ फ़ोटो TV पर भेज रहे हैं...');
     compressImage(file, 1280, (compressedDataUrl) => {
-      sendPayload({ photo: compressedDataUrl }, '🖼️ Photo TV screen par dikh rahi hai!');
+      sendPayload({ photo: compressedDataUrl }, '🖼️ फ़ोटो TV स्क्रीन पर दिख रही है!');
     });
   }
 
   function streamGalleryVideo() {
     const file = document.getElementById('gallery-video-input').files[0];
-    if (!file) return setStatus('Pehle gallery se video select karein!', true);
+    if (!file) return setStatus('पहले गैलरी से वीडियो चुनें!', true);
 
     stopLocalMedia();
     const vidPlayer = document.getElementById('gallery-video-player');
@@ -153,7 +168,7 @@
       vidPlayer.play();
       const stream = vidPlayer.captureStream ? vidPlayer.captureStream() : vidPlayer.mozCaptureStream();
       currentCall = peer.call(CHANNEL_ID, stream);
-      setStatus('🎬 Phone ka video TV par chal raha hai!');
+      setStatus('🎬 फ़ोन का वीडियो TV पर चल रहा है!');
     };
   }
 
@@ -169,7 +184,7 @@
       preview.style.display = 'block';
 
       currentCall = peer.call(CHANNEL_ID, currentStream);
-      setStatus('🔴 Phone Camera TV par LIVE hai!');
+      setStatus('🔴 आपका कैमरा TV पर LIVE है!');
     } catch (err) {
       setStatus('Camera Error: ' + err.message, true);
     }
@@ -178,22 +193,13 @@
   function switchCamera() {
     useBackCamera = !useBackCamera;
     if (currentStream) startCamera();
-    else setStatus(useBackCamera ? 'Back Camera selected' : 'Front Camera selected');
+    else setStatus(useBackCamera ? 'Back Camera चुना गया' : 'Front Camera चुना गया');
   }
 
-  function handleLogo(input) {
-    const file = input.files[0];
-    if (!file) return;
-    compressImage(file, 400, (dataUrl) => {
-      logoBase64 = dataUrl;
-      setStatus('✅ Logo ready! "Update Logo & Marquee" dabayein.');
-    });
-  }
-
-  function updateOverlay() {
+  function updateMarquee() {
     const marquee = document.getElementById('marquee-input').value.trim();
-    if (!marquee && !logoBase64) return setStatus('Text likhein ya logo chunein!', true);
-    sendPayload({ marquee: marquee, logo: logoBase64 }, '✅ Logo & Marquee Updated!');
+    if (!marquee) return setStatus('पहले न्यूज़ पट्टी का टेक्स्ट लिखें!', true);
+    sendPayload({ marquee: marquee }, '✅ न्यूज़ पट्टी अपडेट हो गई!');
   }
 
   function stopLocalMedia() {
@@ -216,7 +222,7 @@
 
   function stopEverything() {
     stopLocalMedia();
-    sendPayload({ stopAll: true }, '⏹ Broadcast rok diya gaya hai.');
+    sendPayload({ stopAll: true }, '⏹ प्रसारण रोक दिया गया है।');
   }
 </script>
 </body>
