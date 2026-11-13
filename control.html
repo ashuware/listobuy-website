@@ -11,55 +11,72 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: #0f0f0f; color: #fff; padding: 16px; max-width: 480px; margin: auto;
     }
-    h2 { font-size: 19px; color: #ffcc00; margin-bottom: 14px; }
+    h2 { font-size: 19px; color: #ffcc00; margin-bottom: 12px; }
     .card {
       background: #1a1a1a; padding: 15px; border-radius: 12px;
-      margin-bottom: 15px; border: 1px solid #2a2a2a;
+      margin-bottom: 14px; border: 1px solid #2a2a2a;
     }
     .card-title { font-size: 12px; color: #aaa; margin-bottom: 10px; font-weight: 700; text-transform: uppercase; }
     .row-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     button {
-      width: 100%; padding: 14px 10px; border: none; border-radius: 10px;
+      width: 100%; padding: 13px 10px; border: none; border-radius: 10px;
       font-weight: 700; font-size: 14px; cursor: pointer;
     }
     .btn-live { background: #e60000; color: #fff; }
     .btn-stop { background: #333; color: #fff; }
-    .btn-switch { background: #262626; color: #ddd; margin-top: 10px; padding: 11px; font-size: 13px; }
+    .btn-switch { background: #262626; color: #ddd; margin-top: 10px; padding: 10px; font-size: 13px; }
+    .btn-photo { background: #1f6feb; color: #fff; }
+    .btn-video { background: #2ea043; color: #fff; margin-top: 6px; }
     .btn-update { background: #ffcc00; color: #000; margin-top: 6px; }
     
     input[type="text"], input[type="file"] {
-      width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333;
-      background: #252525; color: #fff; font-size: 15px; margin-bottom: 10px;
+      width: 100%; padding: 11px; border-radius: 8px; border: 1px solid #333;
+      background: #252525; color: #fff; font-size: 14px; margin-bottom: 10px;
     }
-    #local-preview {
-      width: 100%; height: 220px; background: #000; margin-top: 12px;
+    video {
+      width: 100%; height: 200px; background: #000; margin-top: 10px;
       border-radius: 10px; object-fit: cover; display: none;
     }
-    #status { margin-top: 10px; font-size: 13px; color: #4ade80; text-align: center; }
+    #status { margin-bottom: 12px; font-size: 13px; color: #4ade80; text-align: center; font-weight: 600; min-height: 18px; }
   </style>
 </head>
 <body>
 
-  <h2>📡 Live Camera & TV Control</h2>
+  <h2>📡 Live TV Phone Controller</h2>
+  <div id="status"></div>
 
-  <!-- 1. Live Camera Controls -->
+  <!-- 1. Phone Live Camera -->
   <div class="card">
     <div class="card-title">1. Phone Live Camera</div>
     <div class="row-btns">
-      <button class="btn-live" onclick="startLive()">🔴 Go Live</button>
-      <button class="btn-stop" onclick="stopLive()">⏹ Stop Live</button>
+      <button class="btn-live" onclick="startCamera()">🔴 Go Live</button>
+      <button class="btn-stop" onclick="stopEverything()">⏹ Stop TV</button>
     </div>
     <button class="btn-switch" onclick="switchCamera()">🔄 Switch Front / Back Camera</button>
-    <video id="local-preview" muted autoplay playsinline></video>
+    <video id="camera-preview" muted autoplay playsinline></video>
   </div>
 
-  <!-- 2. Logo & Marquee Controls -->
+  <!-- 2. Phone Gallery Photo Display -->
   <div class="card">
-    <div class="card-title">2. Channel Logo & Marquee Text</div>
+    <div class="card-title">2. Show Photo from Phone</div>
+    <input type="file" id="photo-input" accept="image/*">
+    <button class="btn-photo" onclick="sendPhotoToTV()">🖼️ Show Photo on TV</button>
+  </div>
+
+  <!-- 3. Phone Gallery Video Stream -->
+  <div class="card">
+    <div class="card-title">3. Play Video from Phone Gallery</div>
+    <input type="file" id="gallery-video-input" accept="video/*">
+    <button class="btn-video" onclick="streamGalleryVideo()">🎬 Play Phone Video on TV</button>
+    <video id="gallery-video-player" controls playsinline></video>
+  </div>
+
+  <!-- 4. Logo & Marquee Ticker -->
+  <div class="card">
+    <div class="card-title">4. Channel Logo & Marquee Text</div>
     <input type="text" id="marquee-input" placeholder="Niche chalne wala Marquee text likhein...">
     <input type="file" id="logo-input" accept="image/*" onchange="handleLogo(this)">
     <button class="btn-update" onclick="updateOverlay()">📺 Update Logo & Marquee</button>
-    <div id="status"></div>
   </div>
 
 <script>
@@ -79,70 +96,107 @@
   let currentCall = null;
   let useBackCamera = true;
 
-  function handleLogo(input) {
-    const file = input.files[0];
-    if (!file) return;
+  function setStatus(msg, isError = false) {
+    statusEl.style.color = isError ? '#f87171' : '#4ade80';
+    statusEl.innerText = msg;
+  }
+
+  function sendPayload(payload, successMsg) {
+    const conn = peer.connect(CHANNEL_ID);
+    conn.on('open', () => {
+      conn.send(payload);
+      if (successMsg) setStatus(successMsg);
+    });
+    conn.on('error', () => setStatus('⚠️ TV Screen abhi open nahi hai!', true));
+  }
+
+  function compressImage(file, maxWidth, callback) {
     const reader = new FileReader();
     reader.onload = (e) => {
-      logoBase64 = e.target.result;
-      statusEl.style.color = '#4ade80';
-      statusEl.innerText = '✅ Logo ready! Ab "Update Logo & Marquee" dabayein.';
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, maxWidth / img.width);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        callback(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   }
 
-  function sendPayload(payload, msg) {
-    const conn = peer.connect(CHANNEL_ID);
-    conn.on('open', () => {
-      conn.send(payload);
-      statusEl.style.color = '#4ade80';
-      statusEl.innerText = msg;
-    });
-    conn.on('error', () => {
-      statusEl.style.color = '#f87171';
-      statusEl.innerText = '⚠️ TV Screen abhi open nahi hai!';
+  function sendPhotoToTV() {
+    const file = document.getElementById('photo-input').files[0];
+    if (!file) return setStatus('Pehle koi photo select karein!', true);
+
+    stopLocalMedia();
+    setStatus('⏳ Photo TV par bhej rahe hain...');
+    compressImage(file, 1280, (compressedDataUrl) => {
+      sendPayload({ photo: compressedDataUrl }, '🖼️ Photo TV screen par dikh rahi hai!');
     });
   }
 
-  function updateOverlay() {
-    const marquee = document.getElementById('marquee-input').value.trim();
-    if (!marquee && !logoBase64) {
-      statusEl.style.color = '#ffcc00';
-      statusEl.innerText = 'Pehle text likhein ya logo select karein!';
-      return;
-    }
-    sendPayload({ marquee: marquee, logo: logoBase64 }, '✅ Logo & Marquee TV par update ho gaya!');
+  function streamGalleryVideo() {
+    const file = document.getElementById('gallery-video-input').files[0];
+    if (!file) return setStatus('Pehle gallery se video select karein!', true);
+
+    stopLocalMedia();
+    const vidPlayer = document.getElementById('gallery-video-player');
+    vidPlayer.src = URL.createObjectURL(file);
+    vidPlayer.style.display = 'block';
+    vidPlayer.loop = true;
+
+    vidPlayer.onloadedmetadata = () => {
+      vidPlayer.play();
+      const stream = vidPlayer.captureStream ? vidPlayer.captureStream() : vidPlayer.mozCaptureStream();
+      currentCall = peer.call(CHANNEL_ID, stream);
+      setStatus('🎬 Phone ka video TV par chal raha hai!');
+    };
   }
 
-  async function startLive() {
+  async function startCamera() {
     try {
-      if (currentStream) {
-        currentStream.getTracks().forEach(t => t.stop());
-      }
+      stopLocalMedia();
       currentStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: useBackCamera ? 'environment' : 'user' },
         audio: true
       });
-      const preview = document.getElementById('local-preview');
+      const preview = document.getElementById('camera-preview');
       preview.srcObject = currentStream;
       preview.style.display = 'block';
 
       currentCall = peer.call(CHANNEL_ID, currentStream);
-      statusEl.style.color = '#4ade80';
-      statusEl.innerText = '🔴 Aapka Phone Camera TV par LIVE hai!';
+      setStatus('🔴 Phone Camera TV par LIVE hai!');
     } catch (err) {
-      statusEl.style.color = '#f87171';
-      statusEl.innerText = 'Camera Error: ' + err.message;
+      setStatus('Camera Error: ' + err.message, true);
     }
   }
 
   function switchCamera() {
     useBackCamera = !useBackCamera;
-    if (currentStream) startLive();
-    else statusEl.innerText = useBackCamera ? 'Back Camera selected' : 'Front Camera selected';
+    if (currentStream) startCamera();
+    else setStatus(useBackCamera ? 'Back Camera selected' : 'Front Camera selected');
   }
 
-  function stopLive() {
+  function handleLogo(input) {
+    const file = input.files[0];
+    if (!file) return;
+    compressImage(file, 400, (dataUrl) => {
+      logoBase64 = dataUrl;
+      setStatus('✅ Logo ready! "Update Logo & Marquee" dabayein.');
+    });
+  }
+
+  function updateOverlay() {
+    const marquee = document.getElementById('marquee-input').value.trim();
+    if (!marquee && !logoBase64) return setStatus('Text likhein ya logo chunein!', true);
+    sendPayload({ marquee: marquee, logo: logoBase64 }, '✅ Logo & Marquee Updated!');
+  }
+
+  function stopLocalMedia() {
     if (currentStream) {
       currentStream.getTracks().forEach(t => t.stop());
       currentStream = null;
@@ -151,8 +205,18 @@
       currentCall.close();
       currentCall = null;
     }
-    document.getElementById('local-preview').style.display = 'none';
-    sendPayload({ stopLive: true }, '⏹ Live Broadcast rok diya gaya hai.');
+    const camPrev = document.getElementById('camera-preview');
+    camPrev.style.display = 'none';
+
+    const galVid = document.getElementById('gallery-video-player');
+    galVid.pause();
+    galVid.src = '';
+    galVid.style.display = 'none';
+  }
+
+  function stopEverything() {
+    stopLocalMedia();
+    sendPayload({ stopAll: true }, '⏹ Broadcast rok diya gaya hai.');
   }
 </script>
 </body>
