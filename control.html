@@ -3,87 +3,87 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>अंशी TV - Phone Controller</title>
+  <title>अंशी TV Controller</title>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f0f0f; color: #fff; padding: 16px; max-width: 480px; margin: auto;
+      font-family: Arial, sans-serif;
+      background: #0f0f0f; color: #fff; padding: 14px; max-width: 480px; margin: auto;
     }
-    h2 { font-size: 19px; color: #ffcc00; margin-bottom: 12px; }
+    h2 { font-size: 19px; color: #ffcc00; margin-bottom: 10px; }
     .card {
-      background: #1a1a1a; padding: 15px; border-radius: 12px;
-      margin-bottom: 14px; border: 1px solid #2a2a2a;
+      background: #1a1a1a; padding: 14px; border-radius: 10px;
+      margin-bottom: 12px; border: 1px solid #2a2a2a;
     }
-    .card-title { font-size: 12px; color: #aaa; margin-bottom: 10px; font-weight: 700; text-transform: uppercase; }
-    .row-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .card-title { font-size: 12px; color: #aaa; margin-bottom: 8px; font-weight: bold; }
+    .row-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     button {
-      width: 100%; padding: 13px 10px; border: none; border-radius: 10px;
-      font-weight: 700; font-size: 14px; cursor: pointer;
+      width: 100%; padding: 12px 10px; border: none; border-radius: 8px;
+      font-weight: bold; font-size: 14px; cursor: pointer;
     }
     .btn-live { background: #e60000; color: #fff; }
     .btn-stop { background: #333; color: #fff; }
-    .btn-switch { background: #262626; color: #ddd; margin-top: 10px; padding: 10px; font-size: 13px; }
+    .btn-switch { background: #262626; color: #ddd; margin-top: 8px; padding: 10px; font-size: 13px; }
     .btn-yt { background: #ff0000; color: #fff; }
     .btn-photo { background: #1f6feb; color: #fff; }
-    .btn-video { background: #2ea043; color: #fff; margin-top: 6px; }
-    .btn-update { background: #ffcc00; color: #000; margin-top: 6px; }
+    .btn-video { background: #2ea043; color: #fff; }
+    .btn-update { background: #ffcc00; color: #000; }
     
     input[type="text"], input[type="file"] {
-      width: 100%; padding: 11px; border-radius: 8px; border: 1px solid #333;
-      background: #252525; color: #fff; font-size: 14px; margin-bottom: 10px;
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #333;
+      background: #252525; color: #fff; font-size: 14px; margin-bottom: 8px;
     }
     video {
-      width: 100%; height: 200px; background: #000; margin-top: 10px;
-      border-radius: 10px; object-fit: cover; display: none;
+      width: 100%; height: 180px; background: #000; margin-top: 8px;
+      border-radius: 8px; object-fit: cover; display: none;
     }
-    #status { margin-bottom: 12px; font-size: 13px; color: #4ade80; text-align: center; font-weight: 600; min-height: 18px; }
+    #status { margin-bottom: 10px; font-size: 13px; color: #4ade80; text-align: center; font-weight: bold; min-height: 18px; }
   </style>
 </head>
 <body>
 
-  <h2>📡 अंशी TV रिमोट कंट्रोल</h2>
+  <h2>📡 अंशी TV रिमोट</h2>
   <div id="status"></div>
 
-  <!-- 1. Phone Live Camera -->
+  <!-- 1. Live Camera (Optimized 480p for Zero TV Lag) -->
   <div class="card">
-    <div class="card-title">1. Phone Live Camera</div>
+    <div class="card-title">1. लाइव कैमरा (Smooth 480p + Audio)</div>
     <div class="row-btns">
       <button class="btn-live" onclick="startCamera()">🔴 Go Live</button>
       <button class="btn-stop" onclick="stopEverything()">⏹ Stop TV</button>
     </div>
-    <button class="btn-switch" onclick="switchCamera()">🔄 Switch Front / Back Camera</button>
+    <button class="btn-switch" onclick="switchCamera()">🔄 कैमरा बदलें (Front/Back)</button>
     <video id="camera-preview" muted autoplay playsinline></video>
   </div>
 
-  <!-- 2. YouTube Video Link -->
+  <!-- 2. YouTube Link -->
   <div class="card">
-    <div class="card-title">2. Play YouTube Video on TV</div>
-    <input type="text" id="yt-url" placeholder="YouTube लिंक यहाँ पेस्ट करें...">
-    <button class="btn-yt" onclick="playYouTubeOnTV()">▶ Play YouTube on TV</button>
+    <div class="card-title">2. YouTube चलाएं</div>
+    <input type="text" id="yt-url" placeholder="YouTube लिंक पेस्ट करें...">
+    <button class="btn-yt" onclick="playYouTubeOnTV()">▶ Play YouTube</button>
   </div>
 
-  <!-- 3. Phone Gallery Photo Display -->
+  <!-- 3. Photo Display -->
   <div class="card">
-    <div class="card-title">3. Show Photo from Phone</div>
+    <div class="card-title">3. फ़ोटो दिखाएं</div>
     <input type="file" id="photo-input" accept="image/*">
-    <button class="btn-photo" onclick="sendPhotoToTV()">🖼️ Show Photo on TV</button>
+    <button class="btn-photo" onclick="sendPhotoToTV()">🖼️ Show Photo</button>
   </div>
 
-  <!-- 4. Phone Gallery Video Stream -->
+  <!-- 4. Gallery Video -->
   <div class="card">
-    <div class="card-title">4. Play Video from Phone Gallery</div>
+    <div class="card-title">4. गैलरी वीडियो चलाएं</div>
     <input type="file" id="gallery-video-input" accept="video/*">
-    <button class="btn-video" onclick="streamGalleryVideo()">🎬 Play Phone Video on TV</button>
+    <button class="btn-video" onclick="streamGalleryVideo()">🎬 Play Video</button>
     <video id="gallery-video-player" controls playsinline></video>
   </div>
 
-  <!-- 5. Marquee Ticker -->
+  <!-- 5. Marquee -->
   <div class="card">
-    <div class="card-title">5. Breaking News Marquee Text</div>
+    <div class="card-title">5. न्यूज़ पट्टी (Ticker)</div>
     <input type="text" id="marquee-input" placeholder="ताज़ा ख़बर लिखें...">
-    <button class="btn-update" onclick="updateMarquee()">📺 Update Marquee</button>
+    <button class="btn-update" onclick="updateMarquee()">📺 Update News</button>
   </div>
 
 <script>
@@ -91,8 +91,7 @@
   const peer = new Peer({
     config: {
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
+        { urls: 'stun:stun.l.google.com:19302' }
       ]
     }
   });
@@ -113,28 +112,27 @@
       conn.send(payload);
       if (successMsg) setStatus(successMsg);
     });
-    conn.on('error', () => setStatus('⚠️ TV Screen abhi open nahi hai!', true));
+    conn.on('error', () => setStatus('⚠️ TV खुला नहीं है!', true));
   }
 
   function playYouTubeOnTV() {
     const url = document.getElementById('yt-url').value.trim();
-    if (!url) return setStatus('Pehle YouTube link paste karein!', true);
+    if (!url) return setStatus('YouTube लिंक डालें!', true);
     stopLocalMedia();
-    sendPayload({ youtubeUrl: url }, '▶ YouTube video TV par chal raha hai!');
+    sendPayload({ youtubeUrl: url }, '▶ YouTube TV पर चल रहा है!');
   }
 
-  function compressImage(file, maxWidth, callback) {
+  function compressImage(file, callback) {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const scale = Math.min(1, maxWidth / img.width);
+        const scale = Math.min(1, 720 / img.width);
         canvas.width = img.width * scale;
         canvas.height = img.height * scale;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        callback(canvas.toDataURL('image/jpeg', 0.8));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        callback(canvas.toDataURL('image/jpeg', 0.75));
       };
       img.src = e.target.result;
     };
@@ -143,61 +141,69 @@
 
   function sendPhotoToTV() {
     const file = document.getElementById('photo-input').files[0];
-    if (!file) return setStatus('Pehle koi photo select karein!', true);
-
+    if (!file) return setStatus('पहले फ़ोटो चुनें!', true);
     stopLocalMedia();
-    setStatus('⏳ Photo TV par bhej rahe hain...');
-    compressImage(file, 1000, (compressedDataUrl) => {
-      sendPayload({ photo: compressedDataUrl }, '🖼️ Photo TV screen par dikh rahi hai!');
+    setStatus('⏳ फ़ोटो भेज रहे हैं...');
+    compressImage(file, (dataUrl) => {
+      sendPayload({ photo: dataUrl }, '🖼️ फ़ोटो TV पर दिख रही है!');
     });
   }
 
   function streamGalleryVideo() {
     const file = document.getElementById('gallery-video-input').files[0];
-    if (!file) return setStatus('Pehle gallery se video select karein!', true);
-
+    if (!file) return setStatus('पहले वीडियो चुनें!', true);
     stopLocalMedia();
     const vidPlayer = document.getElementById('gallery-video-player');
     vidPlayer.src = URL.createObjectURL(file);
     vidPlayer.style.display = 'block';
     vidPlayer.loop = true;
+    vidPlayer.muted = false;
 
     vidPlayer.onloadedmetadata = () => {
       vidPlayer.play();
-      const stream = vidPlayer.captureStream ? vidPlayer.captureStream() : vidPlayer.mozCaptureStream();
+      const stream = vidPlayer.captureStream ? vidPlayer.captureStream(24) : vidPlayer.mozCaptureStream(24);
       currentCall = peer.call(CHANNEL_ID, stream);
-      setStatus('🎬 Phone ka video TV par chal raha hai!');
+      setStatus('🎬 वीडियो TV पर चल रहा है!');
     };
   }
 
   async function startCamera() {
     try {
       stopLocalMedia();
+      // 480p @ 24fps constraint taaki Smart TV box lag na kare
       currentStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: useBackCamera ? 'environment' : 'user' },
-        audio: true
+        video: {
+          facingMode: useBackCamera ? 'environment' : 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 24, max: 24 }
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true
+        }
       });
+
       const preview = document.getElementById('camera-preview');
       preview.srcObject = currentStream;
       preview.style.display = 'block';
 
       currentCall = peer.call(CHANNEL_ID, currentStream);
-      setStatus('🔴 Phone Camera TV par LIVE hai!');
+      setStatus('🔴 लाइव कैमरा + साउंड TV पर चालू है!');
     } catch (err) {
-      setStatus('Camera Error: ' + err.message, true);
+      setStatus('Camera/Mic Error: ' + err.message, true);
     }
   }
 
   function switchCamera() {
     useBackCamera = !useBackCamera;
     if (currentStream) startCamera();
-    else setStatus(useBackCamera ? 'Back Camera selected' : 'Front Camera selected');
   }
 
   function updateMarquee() {
     const marquee = document.getElementById('marquee-input').value.trim();
-    if (!marquee) return setStatus('Pehle marquee text likhein!', true);
-    sendPayload({ marquee: marquee }, '✅ Marquee Updated!');
+    if (!marquee) return setStatus('टेक्स्ट लिखें!', true);
+    sendPayload({ marquee: marquee }, '✅ न्यूज़ अपडेट हो गई!');
   }
 
   function stopLocalMedia() {
@@ -209,9 +215,7 @@
       currentCall.close();
       currentCall = null;
     }
-    const camPrev = document.getElementById('camera-preview');
-    camPrev.style.display = 'none';
-
+    document.getElementById('camera-preview').style.display = 'none';
     const galVid = document.getElementById('gallery-video-player');
     galVid.pause();
     galVid.src = '';
@@ -220,7 +224,7 @@
 
   function stopEverything() {
     stopLocalMedia();
-    sendPayload({ stopAll: true }, '⏹ Broadcast rok diya gaya hai.');
+    sendPayload({ stopAll: true }, '⏹ TV बंद कर दिया गया।');
   }
 </script>
 </body>

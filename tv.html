@@ -3,126 +3,140 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>अंशी TV - Live Broadcast</title>
+  <title>अंशी TV</title>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #000; color: #fff; font-family: Arial, sans-serif; overflow: hidden; height: 100vh; width: 100vw; }
-    #player-container { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    #player-container { position: relative; width: 100%; height: 100%; }
     
     video, #tv-photo, #yt-frame {
       width: 100%; height: 100%; position: absolute; inset: 0; background: #000; border: none;
     }
-    video { object-fit: cover; display: none; z-index: 7; }
-    #tv-photo { object-fit: contain; display: none; z-index: 8; }
-    #yt-frame { display: none; z-index: 9; }
+    video { object-fit: cover; display: none; z-index: 5; }
+    #tv-photo { object-fit: contain; display: none; z-index: 6; }
+    #yt-frame { display: none; z-index: 7; }
 
     #unmute-overlay {
-      position: absolute; inset: 0; background: rgba(0,0,0,0.85);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      z-index: 50; cursor: pointer;
+      position: absolute; inset: 0; background: rgba(0,0,0,0.9);
+      display: flex; align-items: center; justify-content: center; z-index: 50;
     }
     #unmute-overlay button {
-      padding: 16px 32px; font-size: 18px; font-weight: bold;
-      background: #e60000; color: #fff; border: none; border-radius: 10px; cursor: pointer;
+      padding: 18px 36px; font-size: 20px; font-weight: bold;
+      background: #e60000; color: #fff; border: 2px solid #ffcc00; border-radius: 10px;
     }
 
-    #standby-screen { position: absolute; text-align: center; color: #888; z-index: 5; }
-    #standby-screen h3 { color: #ffcc00; margin-bottom: 6px; font-size: 26px; }
+    #standby-screen {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; color: #aaa; z-index: 2;
+    }
+    #standby-screen h3 { color: #ffcc00; font-size: 28px; margin-bottom: 8px; }
 
-    /* Top-Left Hindi Din & Time */
+    /* Lightweight Top Bar (No heavy blur filters) */
     #datetime-box {
-      position: absolute; top: 22px; left: 28px; z-index: 25;
-      background: rgba(0, 0, 0, 0.72); border-left: 4px solid #ffcc00;
-      padding: 8px 14px; border-radius: 6px;
+      position: absolute; top: 18px; left: 22px; z-index: 20;
+      background: rgba(0, 0, 0, 0.8); border-left: 4px solid #ffcc00; padding: 6px 12px;
     }
-    #live-time { font-size: 19px; font-weight: 800; color: #fff; }
-    #live-day-date { font-size: 13px; color: #ffcc00; font-weight: 600; margin-top: 2px; }
+    #live-time { font-size: 18px; font-weight: bold; }
+    #live-day-date { font-size: 12px; color: #ffcc00; margin-top: 2px; }
 
-    /* Top-Right Fixed अंशी TV Logo */
     #channel-logo {
-      position: absolute; top: 22px; right: 28px; z-index: 25;
-      display: flex; align-items: center; gap: 10px;
-      background: rgba(0, 0, 0, 0.78); padding: 8px 15px; border-radius: 8px;
-      border: 1.5px solid #ffcc00;
+      position: absolute; top: 18px; right: 22px; z-index: 20;
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(0, 0, 0, 0.85); padding: 6px 14px; border: 1.5px solid #ffcc00; border-radius: 6px;
     }
-    .anshi-hindi { font-size: 24px; font-weight: 900; color: #ffcc00; }
-    .tv-box { background: #e60000; color: #fff; font-weight: 900; font-size: 17px; padding: 2px 7px; border-radius: 4px; }
-    .live-badge {
-      background: #e60000; color: #fff; font-weight: bold; font-size: 12px;
-      padding: 4px 8px; border-radius: 4px; animation: blink 1.2s infinite;
-    }
-    @keyframes blink { 50% { opacity: 0.4; } }
+    .anshi-hindi { font-size: 22px; font-weight: 900; color: #ffcc00; }
+    .tv-box { background: #e60000; color: #fff; font-weight: 900; font-size: 16px; padding: 2px 6px; border-radius: 4px; }
+    .live-dot { width: 10px; height: 10px; background: #ff0000; border-radius: 50%; }
 
+    /* Smooth GPU Ticker (Replaces laggy marquee tag) */
     #ticker-bar {
-      position: absolute; bottom: 0; left: 0; width: 100%; height: 50px;
-      background: linear-gradient(90deg, #b30000, #800000);
-      display: flex; align-items: center; z-index: 25; border-top: 2px solid #ffcc00;
+      position: absolute; bottom: 0; left: 0; width: 100%; height: 46px;
+      background: #990000; display: flex; align-items: center; z-index: 20; border-top: 2px solid #ffcc00;
+      overflow: hidden;
     }
     #breaking-tag {
-      background: #ffcc00; color: #000; font-weight: 900; padding: 0 20px;
-      height: 100%; display: flex; align-items: center; font-size: 16px; white-space: nowrap;
+      background: #ffcc00; color: #000; font-weight: 900; padding: 0 16px;
+      height: 100%; display: flex; align-items: center; font-size: 15px; z-index: 2; white-space: nowrap;
     }
-    marquee { font-size: 21px; font-weight: 600; }
+    #ticker-wrap { flex: 1; overflow: hidden; white-space: nowrap; }
+    #marquee-text {
+      display: inline-block; padding-left: 100%; font-size: 20px; font-weight: bold;
+      animation: scroll-left 18s linear infinite;
+    }
+    @keyframes scroll-left {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-100%); }
+    }
   </style>
 </head>
 <body>
 
 <div id="player-container">
   <div id="unmute-overlay" onclick="startTV()">
-    <button>📺 अंशी TV चालू करें (Click for Sound)</button>
+    <button id="start-btn">📺 अंशी TV चालू करें (OK दबाएं)</button>
   </div>
 
   <div id="standby-screen">
     <h3>📡 अंशी TV LIVE</h3>
-    <p>Waiting for Phone Broadcast (Camera / YouTube / Photo / Video)...</p>
+    <p>प्रसारण की प्रतीक्षा है...</p>
   </div>
 
   <div id="datetime-box">
-    <div id="live-time">--:--:--</div>
-    <div id="live-day-date">लोड हो रहा है...</div>
+    <div id="live-time">--:--</div>
+    <div id="live-day-date">...</div>
   </div>
 
   <div id="channel-logo">
-    <span class="live-badge">● LIVE</span>
+    <span class="live-dot"></span>
     <span class="anshi-hindi">अंशी</span>
     <span class="tv-box">TV</span>
   </div>
 
-  <img id="tv-photo" alt="Broadcast Photo">
+  <img id="tv-photo" alt="">
   <iframe id="yt-frame" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
   <video id="live-video" autoplay playsinline></video>
+  <audio id="live-audio" autoplay></audio>
 
   <div id="ticker-bar">
     <div id="breaking-tag">ताज़ा ख़बर</div>
-    <marquee id="marquee-text" scrollamount="7">अंशी TV पर आपका स्वागत है! लाइव अपडेट्स के लिए जुड़े रहें...</marquee>
+    <div id="ticker-wrap">
+      <div id="marquee-text">अंशी TV पर आपका स्वागत है!</div>
+    </div>
   </div>
 </div>
 
 <script>
   const videoEl = document.getElementById('live-video');
+  const audioEl = document.getElementById('live-audio');
   const photoEl = document.getElementById('tv-photo');
   const ytFrame = document.getElementById('yt-frame');
   const standbyEl = document.getElementById('standby-screen');
   const marqueeEl = document.getElementById('marquee-text');
 
-  function updateHindiClock() {
-    const now = new Date();
-    const hindiDays = ['रविवार', 'सोमवार', 'मंगलवार', 'बुधवार', 'गुरुवार', 'शुक्रवार', 'शनिवार'];
-    const hindiMonths = ['जनवरी', 'फ़रवरी', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुलाई', 'अगस्त', 'सितंबर', 'अक्टूबर', 'नवंबर', 'दिसंबर'];
+  // Auto focus button for TV Remote OK click
+  window.onload = () => document.getElementById('start-btn').focus();
 
-    document.getElementById('live-time').innerText = now.toLocaleTimeString('en-IN', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
-    }).toUpperCase();
-    document.getElementById('live-day-date').innerText = `${hindiDays[now.getDay()]}, ${now.getDate()} ${hindiMonths[now.getMonth()]} ${now.getFullYear()}`;
+  function updateClock() {
+    const now = new Date();
+    const days = ['रविवार', 'सोमवार', 'मंगलवार', 'बुधवार', 'गुरुवार', 'शुक्रवार', 'शनिवार'];
+    const months = ['जनवरी', 'फ़रवरी', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुलाई', 'अगस्त', 'सितंबर', 'अक्टूबर', 'नवंबर', 'दिसंबर'];
+    document.getElementById('live-time').innerText = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+    document.getElementById('live-day-date').innerText = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
   }
-  setInterval(updateHindiClock, 1000);
-  updateHindiClock();
+  setInterval(updateClock, 5000);
+  updateClock();
 
   function startTV() {
     document.getElementById('unmute-overlay').style.display = 'none';
     videoEl.muted = false;
-    if (videoEl.srcObject) videoEl.play();
+    videoEl.volume = 1.0;
+    audioEl.muted = false;
+    audioEl.volume = 1.0;
+    if (videoEl.srcObject) {
+      videoEl.play();
+      audioEl.play();
+    }
   }
 
   function extractYouTubeID(url) {
@@ -134,8 +148,7 @@
   const peer = new Peer(CHANNEL_ID, {
     config: {
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
+        { urls: 'stun:stun.l.google.com:19302' }
       ]
     }
   });
@@ -148,6 +161,7 @@
         const ytId = extractYouTubeID(data.youtubeUrl);
         if (ytId) {
           videoEl.srcObject = null;
+          audioEl.srcObject = null;
           videoEl.style.display = 'none';
           photoEl.style.display = 'none';
           standbyEl.style.display = 'none';
@@ -158,6 +172,7 @@
 
       if (data.photo) {
         videoEl.srcObject = null;
+        audioEl.srcObject = null;
         videoEl.style.display = 'none';
         ytFrame.src = '';
         ytFrame.style.display = 'none';
@@ -168,11 +183,12 @@
 
       if (data.stopAll) {
         videoEl.srcObject = null;
+        audioEl.srcObject = null;
         videoEl.style.display = 'none';
         photoEl.style.display = 'none';
         ytFrame.src = '';
         ytFrame.style.display = 'none';
-        standbyEl.style.display = 'block';
+        standbyEl.style.display = 'flex';
       }
     });
   });
@@ -184,12 +200,19 @@
       ytFrame.src = '';
       ytFrame.style.display = 'none';
       standbyEl.style.display = 'none';
+      
       videoEl.style.display = 'block';
       videoEl.srcObject = remoteStream;
-      videoEl.play().catch(() => {
-        videoEl.muted = true;
-        videoEl.play();
-      });
+      videoEl.muted = false;
+      videoEl.volume = 1.0;
+
+      // Dedicated audio track binding for Android TV boxes
+      audioEl.srcObject = remoteStream;
+      audioEl.muted = false;
+      audioEl.volume = 1.0;
+
+      videoEl.play().catch(() => {});
+      audioEl.play().catch(() => {});
     });
   });
 </script>
