@@ -86,6 +86,9 @@
     <button class="btn-update" onclick="updateMarquee()">📺 न्यूज़ पट्टी अपडेट करें</button>
   </div>
 
+  <!-- Hidden Canvas for Reliable Mobile Video Streaming -->
+  <canvas id="stream-canvas" style="display:none;"></canvas>
+
 <script>
   const CHANNEL_ID = 'aashish-domain-live-tv-01';
   const peer = new Peer({
@@ -101,6 +104,7 @@
   let currentStream = null;
   let currentCall = null;
   let useBackCamera = true;
+  let canvasLoopId = null;
 
   function setStatus(msg, isError = false) {
     statusEl.style.color = isError ? '#f87171' : '#4ade80';
@@ -108,7 +112,7 @@
   }
 
   function sendPayload(payload, successMsg) {
-    const conn = peer.connect(CHANNEL_ID);
+    const conn = peer.connect(CHANNEL_ID, { reliable: true });
     conn.on('open', () => {
       conn.send(payload);
       if (successMsg) setStatus(successMsg);
@@ -116,7 +120,6 @@
     conn.on('error', () => setStatus('⚠️ TV स्क्रीन अभी खुली नहीं है!', true));
   }
 
-  // YouTube Link bhejna
   function playYouTubeOnTV() {
     const url = document.getElementById('yt-url').value.trim();
     if (!url) return setStatus('पहले YouTube लिंक पेस्ट करें!', true);
@@ -124,19 +127,20 @@
     sendPayload({ youtubeUrl: url }, '▶ YouTube वीडियो TV पर चल रहा है!');
   }
 
-  // Image compress karke bhejna
-  function compressImage(file, maxWidth, callback) {
+  // Photo ko WebRTC safe size (max 800px, 70% quality) mein compress karna
+  function compressImage(file, callback) {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
+        const maxWidth = 850;
         const scale = Math.min(1, maxWidth / img.width);
         canvas.width = img.width * scale;
         canvas.height = img.height * scale;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        callback(canvas.toDataURL('image/jpeg', 0.85));
+        callback(canvas.toDataURL('image/jpeg', 0.72));
       };
       img.src = e.target.result;
     };
@@ -149,26 +153,56 @@
 
     stopLocalMedia();
     setStatus('⏳ फ़ोटो TV पर भेज रहे हैं...');
-    compressImage(file, 1280, (compressedDataUrl) => {
+    compressImage(file, (compressedDataUrl) => {
       sendPayload({ photo: compressedDataUrl }, '🖼️ फ़ोटो TV स्क्रीन पर दिख रही है!');
     });
   }
 
+  // Mobile Chrome Compatible Canvas + Audio Video Streamer
   function streamGalleryVideo() {
     const file = document.getElementById('gallery-video-input').files[0];
     if (!file) return setStatus('पहले गैलरी से वीडियो चुनें!', true);
 
     stopLocalMedia();
     const vidPlayer = document.getElementById('gallery-video-player');
+    const canvas = document.getElementById('stream-canvas');
+    const ctx = canvas.getContext('2d');
+
     vidPlayer.src = URL.createObjectURL(file);
     vidPlayer.style.display = 'block';
     vidPlayer.loop = true;
 
-    vidPlayer.onloadedmetadata = () => {
+    vidPlayer.onloadeddata = () => {
+      // Canvas size set karein (720p max for smooth mobile streaming)
+      const scale = Math.min(1, 720 / vidPlayer.videoWidth);
+      canvas.width = vidPlayer.videoWidth * scale;
+      canvas.height = vidPlayer.videoHeight * scale;
+
       vidPlayer.play();
-      const stream = vidPlayer.captureStream ? vidPlayer.captureStream() : vidPlayer.mozCaptureStream();
-      currentCall = peer.call(CHANNEL_ID, stream);
-      setStatus('🎬 फ़ोन का वीडियो TV पर चल रहा है!');
+
+      function drawFrame() {
+        if (vidPlayer.paused || vidPlayer.ended) return;
+        ctx.drawImage(vidPlayer, 0, 0, canvas.width, canvas.height);
+        canvasLoopId = requestAnimationFrame(drawFrame);
+      }
+      drawFrame();
+
+      // Canvas se video stream lein + Audio track add karein
+      const canvasStream = canvas.captureStream(25);
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaElementSource(vidPlayer);
+        const dest = audioCtx.createMediaStreamDestination();
+        source.connect(dest);
+        source.connect(audioCtx.destination); // Phone par bhi sound sunai de
+        dest.stream.getAudioTracks().forEach(track => canvasStream.addTrack(track));
+      } catch (e) {
+        console.log('Audio bridge fallback:', e);
+      }
+
+      currentStream = canvasStream;
+      currentCall = peer.call(CHANNEL_ID, currentStream);
+      setStatus('🎬 फ़ोन का वीडियो TV पर लाइव चल रहा है!');
     };
   }
 
@@ -203,6 +237,10 @@
   }
 
   function stopLocalMedia() {
+    if (canvasLoopId) {
+      cancelAnimationFrame(canvasLoopId);
+      canvasLoopId = null;
+    }
     if (currentStream) {
       currentStream.getTracks().forEach(t => t.stop());
       currentStream = null;
