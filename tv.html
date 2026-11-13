@@ -10,11 +10,14 @@
     body { background: #000; color: #fff; font-family: Arial, sans-serif; overflow: hidden; height: 100vh; width: 100vw; }
     #player-container { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
     
-    video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+    video, #tv-photo {
+      width: 100%; height: 100%; position: absolute; inset: 0; background: #000;
+    }
+    video { object-fit: cover; display: none; }
+    #tv-photo { object-fit: contain; display: none; z-index: 8; }
 
-    /* Browser Audio/Autoplay Unlock Overlay */
     #unmute-overlay {
-      position: absolute; inset: 0; background: rgba(0,0,0,0.82);
+      position: absolute; inset: 0; background: rgba(0,0,0,0.85);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       z-index: 50; cursor: pointer;
     }
@@ -24,12 +27,9 @@
       box-shadow: 0 4px 15px rgba(230,0,0,0.5);
     }
 
-    #standby-screen {
-      position: absolute; text-align: center; color: #888; z-index: 5;
-    }
+    #standby-screen { position: absolute; text-align: center; color: #888; z-index: 5; }
     #standby-screen h3 { color: #fff; margin-bottom: 6px; font-size: 24px; letter-spacing: 1px; }
 
-    /* Channel Logo Top-Right */
     #channel-logo {
       position: absolute; top: 25px; right: 30px; z-index: 20;
       display: flex; align-items: center; gap: 10px;
@@ -43,7 +43,6 @@
     }
     @keyframes blink { 50% { opacity: 0.4; } }
 
-    /* Bottom Marquee Bar */
     #ticker-bar {
       position: absolute; bottom: 0; left: 0; width: 100%; height: 50px;
       background: linear-gradient(90deg, #b30000, #800000);
@@ -65,7 +64,7 @@
 
   <div id="standby-screen">
     <h3>📡 LIVE TV STANDBY</h3>
-    <p>Waiting for Phone Camera Broadcast...</p>
+    <p>Waiting for Phone Broadcast (Camera / Photo / Video)...</p>
   </div>
 
   <div id="channel-logo">
@@ -74,6 +73,7 @@
     <span id="default-title" style="font-weight:900; font-size:18px;">LIVE TV</span>
   </div>
 
+  <img id="tv-photo" alt="Broadcast Photo">
   <video id="live-video" autoplay playsinline></video>
 
   <div id="ticker-bar">
@@ -84,6 +84,7 @@
 
 <script>
   const videoEl = document.getElementById('live-video');
+  const photoEl = document.getElementById('tv-photo');
   const standbyEl = document.getElementById('standby-screen');
   const marqueeEl = document.getElementById('marquee-text');
   const logoEl = document.getElementById('logo-img');
@@ -95,7 +96,6 @@
     if (videoEl.srcObject) videoEl.play();
   }
 
-  // Unique Channel ID + Google STUN servers (Mobile 4G/5G aur Wi-Fi connection ke liye)
   const CHANNEL_ID = 'aashish-domain-live-tv-01';
   const peer = new Peer(CHANNEL_ID, {
     config: {
@@ -106,27 +106,39 @@
     }
   });
 
-  // 1. Logo aur Marquee updates receive karna
   peer.on('connection', (conn) => {
     conn.on('data', (data) => {
       if (data.marquee) marqueeEl.innerText = data.marquee;
+      
       if (data.logo) {
         logoEl.src = data.logo;
         logoEl.style.display = 'block';
         defaultTitle.style.display = 'none';
       }
-      if (data.stopLive) {
+
+      if (data.photo) {
         videoEl.srcObject = null;
+        videoEl.style.display = 'none';
+        standbyEl.style.display = 'none';
+        photoEl.src = data.photo;
+        photoEl.style.display = 'block';
+      }
+
+      if (data.stopAll) {
+        videoEl.srcObject = null;
+        videoEl.style.display = 'none';
+        photoEl.style.display = 'none';
         standbyEl.style.display = 'block';
       }
     });
   });
 
-  // 2. Phone ka Live Camera receive karna
   peer.on('call', (call) => {
     call.answer();
     call.on('stream', (remoteStream) => {
+      photoEl.style.display = 'none';
       standbyEl.style.display = 'none';
+      videoEl.style.display = 'block';
       videoEl.srcObject = remoteStream;
       videoEl.play().catch(() => {
         videoEl.muted = true;
