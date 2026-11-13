@@ -11,7 +11,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: #0f0f0f; color: #fff; padding: 16px; max-width: 480px; margin: auto;
     }
-    h2 { font-size: 20px; color: #ffcc00; margin-bottom: 10px; }
+    h2 { font-size: 19px; color: #ffcc00; margin-bottom: 12px; }
     .card {
       background: #1a1a1a; padding: 15px; border-radius: 12px;
       margin-bottom: 14px; border: 1px solid #2a2a2a;
@@ -27,8 +27,8 @@
     .btn-switch { background: #262626; color: #ddd; margin-top: 10px; padding: 10px; font-size: 13px; }
     .btn-yt { background: #ff0000; color: #fff; }
     .btn-photo { background: #1f6feb; color: #fff; }
-    .btn-video { background: #2ea043; color: #fff; }
-    .btn-update { background: #ffcc00; color: #000; }
+    .btn-video { background: #2ea043; color: #fff; margin-top: 6px; }
+    .btn-update { background: #ffcc00; color: #000; margin-top: 6px; }
     
     input[type="text"], input[type="file"] {
       width: 100%; padding: 11px; border-radius: 8px; border: 1px solid #333;
@@ -48,46 +48,43 @@
 
   <!-- 1. Phone Live Camera -->
   <div class="card">
-    <div class="card-title">1. लाइव कैमरा (Live Camera)</div>
+    <div class="card-title">1. Phone Live Camera</div>
     <div class="row-btns">
       <button class="btn-live" onclick="startCamera()">🔴 Go Live</button>
-      <button class="btn-stop" onclick="stopEverything()">⏹ TV बंद करें</button>
+      <button class="btn-stop" onclick="stopEverything()">⏹ Stop TV</button>
     </div>
-    <button class="btn-switch" onclick="switchCamera()">🔄 फ्रंट / बैक कैमरा बदलें</button>
+    <button class="btn-switch" onclick="switchCamera()">🔄 Switch Front / Back Camera</button>
     <video id="camera-preview" muted autoplay playsinline></video>
   </div>
 
-  <!-- 2. YouTube Link Player -->
+  <!-- 2. YouTube Video Link -->
   <div class="card">
-    <div class="card-title">2. YouTube वीडियो / लाइव लिंक चलाएं</div>
+    <div class="card-title">2. Play YouTube Video on TV</div>
     <input type="text" id="yt-url" placeholder="YouTube लिंक यहाँ पेस्ट करें...">
-    <button class="btn-yt" onclick="playYouTubeOnTV()">▶ YouTube TV पर चलाएं</button>
+    <button class="btn-yt" onclick="playYouTubeOnTV()">▶ Play YouTube on TV</button>
   </div>
 
   <!-- 3. Phone Gallery Photo Display -->
   <div class="card">
-    <div class="card-title">3. फ़ोन से फ़ोटो दिखाएं</div>
+    <div class="card-title">3. Show Photo from Phone</div>
     <input type="file" id="photo-input" accept="image/*">
-    <button class="btn-photo" onclick="sendPhotoToTV()">🖼️ फ़ोटो TV पर दिखाएं</button>
+    <button class="btn-photo" onclick="sendPhotoToTV()">🖼️ Show Photo on TV</button>
   </div>
 
   <!-- 4. Phone Gallery Video Stream -->
   <div class="card">
-    <div class="card-title">4. फ़ोन गैलरी का वीडियो चलाएं</div>
+    <div class="card-title">4. Play Video from Phone Gallery</div>
     <input type="file" id="gallery-video-input" accept="video/*">
-    <button class="btn-video" onclick="streamGalleryVideo()">🎬 फ़ोन वीडियो TV पर चलाएं</button>
+    <button class="btn-video" onclick="streamGalleryVideo()">🎬 Play Phone Video on TV</button>
     <video id="gallery-video-player" controls playsinline></video>
   </div>
 
   <!-- 5. Marquee Ticker -->
   <div class="card">
-    <div class="card-title">5. नीचे चलने वाली न्यूज़ पट्टी (Marquee)</div>
-    <input type="text" id="marquee-input" placeholder="ताज़ा ख़बर हिंदी या English में लिखें...">
-    <button class="btn-update" onclick="updateMarquee()">📺 न्यूज़ पट्टी अपडेट करें</button>
+    <div class="card-title">5. Breaking News Marquee Text</div>
+    <input type="text" id="marquee-input" placeholder="ताज़ा ख़बर लिखें...">
+    <button class="btn-update" onclick="updateMarquee()">📺 Update Marquee</button>
   </div>
-
-  <!-- Hidden Canvas for Reliable Mobile Video Streaming -->
-  <canvas id="stream-canvas" style="display:none;"></canvas>
 
 <script>
   const CHANNEL_ID = 'aashish-domain-live-tv-01';
@@ -104,7 +101,6 @@
   let currentStream = null;
   let currentCall = null;
   let useBackCamera = true;
-  let canvasLoopId = null;
 
   function setStatus(msg, isError = false) {
     statusEl.style.color = isError ? '#f87171' : '#4ade80';
@@ -112,35 +108,33 @@
   }
 
   function sendPayload(payload, successMsg) {
-    const conn = peer.connect(CHANNEL_ID, { reliable: true });
+    const conn = peer.connect(CHANNEL_ID);
     conn.on('open', () => {
       conn.send(payload);
       if (successMsg) setStatus(successMsg);
     });
-    conn.on('error', () => setStatus('⚠️ TV स्क्रीन अभी खुली नहीं है!', true));
+    conn.on('error', () => setStatus('⚠️ TV Screen abhi open nahi hai!', true));
   }
 
   function playYouTubeOnTV() {
     const url = document.getElementById('yt-url').value.trim();
-    if (!url) return setStatus('पहले YouTube लिंक पेस्ट करें!', true);
+    if (!url) return setStatus('Pehle YouTube link paste karein!', true);
     stopLocalMedia();
-    sendPayload({ youtubeUrl: url }, '▶ YouTube वीडियो TV पर चल रहा है!');
+    sendPayload({ youtubeUrl: url }, '▶ YouTube video TV par chal raha hai!');
   }
 
-  // Photo ko WebRTC safe size (max 800px, 70% quality) mein compress karna
-  function compressImage(file, callback) {
+  function compressImage(file, maxWidth, callback) {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const maxWidth = 850;
         const scale = Math.min(1, maxWidth / img.width);
         canvas.width = img.width * scale;
         canvas.height = img.height * scale;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        callback(canvas.toDataURL('image/jpeg', 0.72));
+        callback(canvas.toDataURL('image/jpeg', 0.8));
       };
       img.src = e.target.result;
     };
@@ -149,60 +143,30 @@
 
   function sendPhotoToTV() {
     const file = document.getElementById('photo-input').files[0];
-    if (!file) return setStatus('पहले कोई फ़ोटो चुनें!', true);
+    if (!file) return setStatus('Pehle koi photo select karein!', true);
 
     stopLocalMedia();
-    setStatus('⏳ फ़ोटो TV पर भेज रहे हैं...');
-    compressImage(file, (compressedDataUrl) => {
-      sendPayload({ photo: compressedDataUrl }, '🖼️ फ़ोटो TV स्क्रीन पर दिख रही है!');
+    setStatus('⏳ Photo TV par bhej rahe hain...');
+    compressImage(file, 1000, (compressedDataUrl) => {
+      sendPayload({ photo: compressedDataUrl }, '🖼️ Photo TV screen par dikh rahi hai!');
     });
   }
 
-  // Mobile Chrome Compatible Canvas + Audio Video Streamer
   function streamGalleryVideo() {
     const file = document.getElementById('gallery-video-input').files[0];
-    if (!file) return setStatus('पहले गैलरी से वीडियो चुनें!', true);
+    if (!file) return setStatus('Pehle gallery se video select karein!', true);
 
     stopLocalMedia();
     const vidPlayer = document.getElementById('gallery-video-player');
-    const canvas = document.getElementById('stream-canvas');
-    const ctx = canvas.getContext('2d');
-
     vidPlayer.src = URL.createObjectURL(file);
     vidPlayer.style.display = 'block';
     vidPlayer.loop = true;
 
-    vidPlayer.onloadeddata = () => {
-      // Canvas size set karein (720p max for smooth mobile streaming)
-      const scale = Math.min(1, 720 / vidPlayer.videoWidth);
-      canvas.width = vidPlayer.videoWidth * scale;
-      canvas.height = vidPlayer.videoHeight * scale;
-
+    vidPlayer.onloadedmetadata = () => {
       vidPlayer.play();
-
-      function drawFrame() {
-        if (vidPlayer.paused || vidPlayer.ended) return;
-        ctx.drawImage(vidPlayer, 0, 0, canvas.width, canvas.height);
-        canvasLoopId = requestAnimationFrame(drawFrame);
-      }
-      drawFrame();
-
-      // Canvas se video stream lein + Audio track add karein
-      const canvasStream = canvas.captureStream(25);
-      try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioCtx.createMediaElementSource(vidPlayer);
-        const dest = audioCtx.createMediaStreamDestination();
-        source.connect(dest);
-        source.connect(audioCtx.destination); // Phone par bhi sound sunai de
-        dest.stream.getAudioTracks().forEach(track => canvasStream.addTrack(track));
-      } catch (e) {
-        console.log('Audio bridge fallback:', e);
-      }
-
-      currentStream = canvasStream;
-      currentCall = peer.call(CHANNEL_ID, currentStream);
-      setStatus('🎬 फ़ोन का वीडियो TV पर लाइव चल रहा है!');
+      const stream = vidPlayer.captureStream ? vidPlayer.captureStream() : vidPlayer.mozCaptureStream();
+      currentCall = peer.call(CHANNEL_ID, stream);
+      setStatus('🎬 Phone ka video TV par chal raha hai!');
     };
   }
 
@@ -218,7 +182,7 @@
       preview.style.display = 'block';
 
       currentCall = peer.call(CHANNEL_ID, currentStream);
-      setStatus('🔴 आपका कैमरा TV पर LIVE है!');
+      setStatus('🔴 Phone Camera TV par LIVE hai!');
     } catch (err) {
       setStatus('Camera Error: ' + err.message, true);
     }
@@ -227,20 +191,16 @@
   function switchCamera() {
     useBackCamera = !useBackCamera;
     if (currentStream) startCamera();
-    else setStatus(useBackCamera ? 'Back Camera चुना गया' : 'Front Camera चुना गया');
+    else setStatus(useBackCamera ? 'Back Camera selected' : 'Front Camera selected');
   }
 
   function updateMarquee() {
     const marquee = document.getElementById('marquee-input').value.trim();
-    if (!marquee) return setStatus('पहले न्यूज़ पट्टी का टेक्स्ट लिखें!', true);
-    sendPayload({ marquee: marquee }, '✅ न्यूज़ पट्टी अपडेट हो गई!');
+    if (!marquee) return setStatus('Pehle marquee text likhein!', true);
+    sendPayload({ marquee: marquee }, '✅ Marquee Updated!');
   }
 
   function stopLocalMedia() {
-    if (canvasLoopId) {
-      cancelAnimationFrame(canvasLoopId);
-      canvasLoopId = null;
-    }
     if (currentStream) {
       currentStream.getTracks().forEach(t => t.stop());
       currentStream = null;
@@ -260,7 +220,7 @@
 
   function stopEverything() {
     stopLocalMedia();
-    sendPayload({ stopAll: true }, '⏹ प्रसारण रोक दिया गया है।');
+    sendPayload({ stopAll: true }, '⏹ Broadcast rok diya gaya hai.');
   }
 </script>
 </body>
