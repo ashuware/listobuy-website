@@ -76,7 +76,7 @@
 <body>
 
 <div id="player-container">
-  <div id="unmute-overlay" onclick="startTV()">
+  <div id="unmute-overlay">
     <button id="start-btn">📺 अंशी TV चालू करें (OK दबाएं)</button>
   </div>
 
@@ -111,7 +111,6 @@
   </div>
 </div>
 
-<script src="https://www.youtube.com/iframe_api"></script>
 <script>
   const videoEl = document.getElementById('live-video');
   const photoEl = document.getElementById('tv-photo');
@@ -119,6 +118,8 @@
   const standbyEl = document.getElementById('standby-screen');
   const marqueeEl = document.getElementById('marquee-text');
   const connBadge = document.getElementById('conn-badge');
+  const unmuteOverlay = document.getElementById('unmute-overlay');
+  const startBtn = document.getElementById('start-btn');
 
   let activeIncomingCall = null;
   let ytPlayer = null;
@@ -127,7 +128,24 @@
   let peer = null;
   const CHANNEL_ID = 'aashish-domain-live-tv-01';
 
-  function onYouTubeIframeAPIReady() {
+  function startTV() {
+    unmuteOverlay.style.display = 'none';
+    videoEl.muted = false;
+    videoEl.volume = 1.0;
+    if (videoEl.srcObject) {
+      videoEl.play().catch(() => {});
+    }
+    if (ytReady && ytPlayer && typeof ytPlayer.unMute === 'function') {
+      ytPlayer.unMute();
+      ytPlayer.setVolume(100);
+    }
+  }
+
+  unmuteOverlay.addEventListener('click', startTV);
+  startBtn.addEventListener('click', startTV);
+  window.addEventListener('load', () => startBtn.focus());
+
+  window.onYouTubeIframeAPIReady = function() {
     ytPlayer = new YT.Player('yt-player', {
       height: '100%',
       width: '100%',
@@ -146,3 +164,176 @@
             playYouTubeFast(pendingYtId);
             pendingYtId = null;
           }
+        }
+      }
+    });
+  };
+
+  function switchMode(newMode) {
+    if (newMode !== 'video') {
+      videoEl.pause();
+      videoEl.srcObject = null;
+      videoEl.style.display = 'none';
+      if (activeIncomingCall) {
+        const oldCall = activeIncomingCall;
+        activeIncomingCall = null;
+        try { oldCall.close(); } catch (e) {}
+      }
+    }
+
+    if (newMode !== 'photo') {
+      photoEl.style.display = 'none';
+    }
+
+    if (newMode !== 'youtube') {
+      if (ytReady && ytPlayer && typeof ytPlayer.stopVideo === 'function') {
+        try { ytPlayer.stopVideo(); } catch (e) {}
+      }
+      ytWrapper.style.display = 'none';
+    }
+
+    standbyEl.style.display = (newMode === 'standby') ? 'flex' : 'none';
+  }
+
+  function playYouTubeFast(ytId) {
+    switchMode('youtube');
+    ytWrapper.style.display = 'block';
+    if (ytReady && ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
+      ytPlayer.unMute();
+      ytPlayer.setVolume(100);
+      ytPlayer.loadVideoById(ytId);
+    } else {
+      pendingYtId = ytId;
+    }
+  }
+
+  function updateClock() {
+    const now = new Date();
+    const days = ['रविवार', 'सोमवार', 'मंगलवार', 'बुधवार', 'गुरुवार', 'शुक्रवार', 'शनिवार'];
+    const months = ['जनवरी', 'फ़रवरी', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुलाई', 'अगस्त', 'सितंबर', 'अक्टूबर', 'नवंबर', 'दिसंबर'];
+    document.getElementById('live-time').innerText = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+    document.getElementById('live-day-date').innerText = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
+  }
+  setInterval(updateClock, 5000);
+  updateClock();
+
+  function extractYouTubeID(url) {
+    const regExp = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([^#&?]{11})/;
+    const match = url.match(regExp);
+    return match ? match[1] : null;
+  }
+
+  function forceH264(sdp) {
+    const lines = sdp.split('\r\n');
+    const mLineIndex = lines.findIndex(l => l.startsWith('m=video'));
+    if (mLineIndex === -1) return sdp;
+    const h264Payloads = lines
+      .filter(l => l.startsWith('a=rtpmap:') && l.toLowerCase().includes('h264'))
+      .map(l => l.split(':')[1].split(' ')[0]);
+    if (!h264Payloads.length) return sdp;
+    const mParts = lines[mLineIndex].split(' ');
+    const others = mParts.slice(3).filter(p => !h264Payloads.includes(p));
+    lines[mLineIndex] = [...mParts.slice(0, 3), ...h264Payloads, ...others].join(' ');
+    return lines.join('\r\n');
+  }
+
+  function initPeer() {
+    if (typeof Peer === 'undefined') {
+      connBadge.style.color = '#f87171';
+      connBadge.innerText = '⚠️ PeerJS लोड नहीं हुआ, पेज रीफ़्रेश करें';
+      return;
+    }
+
+    if (peer) {
+      try { peer.destroy(); } catch (e) {}
+    }
+
+    peer = new Peer(CHANNEL_ID, {
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ],
+        sdpSemantics: 'unified-plan'
+      }
+    });
+
+    peer.on('open', () => {
+      connBadge.style.color = '#4ade80';
+      connBadge.innerText = '🟢 अंशी TV ऑनलाइन है (Ready)';
+    });
+
+    peer.on('error', (err) => {
+      if (err.type === 'unavailable-id') {
+        connBadge.style.color = '#f87171';
+        connBadge.innerText = '⚠️ किसी दूसरे टैब में TV खुला है! पहले उसे बंद करें';
+        setTimeout(initPeer, 3000);
+      } else {
+        connBadge.style.color = '#facc15';
+        connBadge.innerText = '🟡 Reconnecting...';
+        setTimeout(initPeer, 3000);
+      }
+    });
+
+    peer.on('disconnected', () => {
+      connBadge.style.color = '#facc15';
+      connBadge.innerText = '🟡 Reconnecting...';
+      if (peer && !peer.destroyed) peer.reconnect();
+    });
+
+    peer.on('connection', (conn) => {
+      conn.on('data', (data) => {
+        if (data.marquee) marqueeEl.innerText = data.marquee;
+
+        if (data.youtubeUrl) {
+          const ytId = extractYouTubeID(data.youtubeUrl);
+          if (ytId) playYouTubeFast(ytId);
+        }
+
+        if (data.photo) {
+          switchMode('photo');
+          photoEl.src = data.photo;
+          photoEl.style.display = 'block';
+        }
+
+        if (data.stopAll) {
+          switchMode('standby');
+        }
+      });
+    });
+
+    peer.on('call', (call) => {
+      if (activeIncomingCall && activeIncomingCall !== call) {
+        const prev = activeIncomingCall;
+        activeIncomingCall = null;
+        try { prev.close(); } catch (e) {}
+      }
+
+      activeIncomingCall = call;
+      switchMode('video');
+      call.answer(null, { sdpTransform: forceH264 });
+
+      call.on('stream', (remoteStream) => {
+        if (activeIncomingCall !== call) return;
+        videoEl.style.display = 'block';
+        videoEl.srcObject = remoteStream;
+        videoEl.play().catch(() => {
+          videoEl.muted = true;
+          videoEl.play();
+        });
+      });
+
+      call.on('close', () => {
+        if (activeIncomingCall === call) {
+          activeIncomingCall = null;
+          switchMode('standby');
+        }
+      });
+    });
+  }
+
+  initPeer();
+</script>
+<script src="https://www.youtube.com/iframe_api" async></script>
+</body>
+</html>
