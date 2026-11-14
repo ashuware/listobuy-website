@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>अंशी TV Controller</title>
+  <link rel="icon" href="data:,">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="preconnect" href="https://0.peerjs.com" crossorigin>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -57,7 +58,7 @@
     <div class="card-title">1. लाइव कैमरा</div>
     <div class="row-btns">
       <button class="btn-live" onclick="startCamera()">🔴 Go Live</button>
-      <button class="btn-stop" onclick="stopEverything()">⏹ Stop TV</button>
+      <button class="btn-stop" onclick="stopEverything()">⏹ Stop All TVs</button>
     </div>
     <button class="btn-switch" onclick="switchCamera()">🔄 कैमरा बदलें (Front/Back)</button>
     <video id="camera-preview" muted autoplay playsinline></video>
@@ -89,6 +90,10 @@
   </div>
 
 <script>
+  // apni Supabase Details yahan dalen:
+  const SUPABASE_URL = 'https://mnscrpceekdbikgugaif.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_b-oIZWE82mCJZWHZrwKGhQ_MwBdRAlG';
+
   function forceH264(sdp) {
     const lines = sdp.split('\r\n');
     const mLineIndex = lines.findIndex(l => l.startsWith('m=video'));
@@ -115,18 +120,11 @@
     });
   }
 
-  const CHANNEL_ID = 'aashish-domain-live-tv-01';
-  const peer = new Peer({
-    config: {
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-    }
-  });
-
   const statusEl = document.getElementById('status');
   const tvStateEl = document.getElementById('tv-state');
-  let activeConn = null;
+  const onlineTVPeers = new Set();
+  let activeCalls = [];
   let currentStream = null;
-  let currentCall = null;
   let useBackCamera = true;
 
   function setStatus(msg, isError = false) {
@@ -134,49 +132,70 @@
     statusEl.innerText = msg;
   }
 
-  function connectToTV() {
-    if (activeConn && activeConn.open) return;
-    activeConn = peer.connect(CHANNEL_ID, { reliable: true });
-    activeConn.on('open', () => {
+  function updateTVCount() {
+    if (onlineTVPeers.size > 0) {
       tvStateEl.style.color = '#4ade80';
-      tvStateEl.innerText = '🟢 TV Connected';
-    });
-    activeConn.on('close', () => {
-      tvStateEl.style.color = '#f87171';
-      tvStateEl.innerText = '🔴 TV Offline';
-      activeConn = null;
-    });
-    activeConn.on('error', () => {
-      tvStateEl.style.color = '#f87171';
-      tvStateEl.innerText = '🔴 TV Offline';
-    });
+      tvStateEl.innerText = `🟢 ${onlineTVPeers.size} TV Ready`;
+    } else {
+      tvStateEl.style.color = '#facc15';
+      tvStateEl.innerText = '🟡 Broadcast Ready';
+    }
   }
 
-  peer.on('open', connectToTV);
-  setInterval(connectToTV, 3000);
+  const peer = new Peer({
+    config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+  });
 
-  function sendFast(payload, successMsg) {
-    if (activeConn && activeConn.open) {
-      activeConn.send(payload);
-      if (successMsg) setStatus(successMsg);
-    } else {
-      const tempConn = peer.connect(CHANNEL_ID, { reliable: true });
-      tempConn.on('open', () => {
-        activeConn = tempConn;
-        tvStateEl.style.color = '#4ade80';
-        tvStateEl.innerText = '🟢 TV Connected';
-        tempConn.send(payload);
-        if (successMsg) setStatus(successMsg);
-      });
-      tempConn.on('error', () => setStatus('⚠️ TV स्क्रीन खुली नहीं है!', true));
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const channel = sb.channel('anshi-tv-live-room', {
+    config: { broadcast: { self: false } }
+  });
+
+  channel
+    .on('broadcast', { event: 'tv-online' }, ({ payload }) => {
+      if (payload && payload.peerId) {
+        onlineTVPeers.add(payload.peerId);
+        updateTVCount();
+        if (currentStream) {
+          const call = peer.call(payload.peerId, currentStream, { sdpTransform: forceH264 });
+          activeCalls.push(call);
+          setTimeout(() => capVideoBitrate(call, 450), 800);
+        }
+      }
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        updateTVCount();
+        channel.send({ type: 'broadcast', event: 'who-is-online', payload: {} });
+      }
+    });
+
+  function sendCommand(payload, successMsg) {
+    channel.send({
+      type: 'broadcast',
+      event: 'tv-command',
+      payload
+    });
+    if (successMsg) setStatus(successMsg);
+  }
+
+  function broadcastStream(stream) {
+    if (onlineTVPeers.size === 0) {
+      channel.send({ type: 'broadcast', event: 'who-is-online', payload: {} });
+      return setStatus('⚠️ कोई TV ऑनलाइन नहीं दिखा, 2 सेकंड बाद फिर दबाएं।', true);
     }
+    onlineTVPeers.forEach(peerId => {
+      const call = peer.call(peerId, stream, { sdpTransform: forceH264 });
+      activeCalls.push(call);
+      setTimeout(() => capVideoBitrate(call, 450), 800);
+    });
   }
 
   function playYouTubeOnTV() {
     const url = document.getElementById('yt-url').value.trim();
     if (!url) return setStatus('YouTube लिंक डालें!', true);
     stopLocalMedia();
-    sendFast({ youtubeUrl: url }, '▶ YouTube TV पर चल रहा है!');
+    sendCommand({ youtubeUrl: url }, '▶ YouTube सभी TV पर चल रहा है!');
   }
 
   function compressImage(file, callback) {
@@ -185,14 +204,14 @@
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const scale = Math.min(1, 540 / img.width);
+        const scale = Math.min(1, 720 / img.width);
         canvas.width = Math.round(img.width * scale);
         canvas.height = Math.round(img.height * scale);
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        callback(canvas.toDataURL('image/jpeg', 0.45));
+        callback(canvas.toDataURL('image/jpeg', 0.65));
       };
       img.src = e.target.result;
     };
@@ -203,9 +222,8 @@
     const file = document.getElementById('photo-input').files[0];
     if (!file) return setStatus('पहले फ़ोटो चुनें!', true);
     stopLocalMedia();
-    setStatus('⏳ फ़ोटो भेज रहे हैं...');
     compressImage(file, (dataUrl) => {
-      sendFast({ photo: dataUrl }, '🖼️ फ़ोटो TV पर दिख रही है!');
+      sendCommand({ photo: dataUrl }, '🖼️ फ़ोटो सभी TV पर दिख रही है!');
     });
   }
 
@@ -221,9 +239,9 @@
     vidPlayer.onloadedmetadata = () => {
       vidPlayer.play();
       const stream = vidPlayer.captureStream ? vidPlayer.captureStream(24) : vidPlayer.mozCaptureStream(24);
-      currentCall = peer.call(CHANNEL_ID, stream, { sdpTransform: forceH264 });
-      setTimeout(() => capVideoBitrate(currentCall, 450), 800);
-      setStatus('🎬 वीडियो TV पर चल रहा है!');
+      currentStream = stream;
+      broadcastStream(stream);
+      setStatus('🎬 वीडियो सभी TV पर चल रहा है!');
     };
   }
 
@@ -244,9 +262,8 @@
       preview.srcObject = currentStream;
       preview.style.display = 'block';
 
-      currentCall = peer.call(CHANNEL_ID, currentStream, { sdpTransform: forceH264 });
-      setTimeout(() => capVideoBitrate(currentCall, 450), 800);
-      setStatus('🔴 लाइव कैमरा + साउंड TV पर चालू है!');
+      broadcastStream(currentStream);
+      setStatus('🔴 लाइव कैमरा सभी TV पर चालू है!');
     } catch (err) {
       setStatus('Camera/Mic Error: ' + err.message, true);
     }
@@ -260,7 +277,7 @@
   function updateMarquee() {
     const marquee = document.getElementById('marquee-input').value.trim();
     if (!marquee) return setStatus('टेक्स्ट लिखें!', true);
-    sendFast({ marquee: marquee }, '✅ न्यूज़ अपडेट हो गई!');
+    sendCommand({ marquee: marquee }, '✅ न्यूज़ अपडेट हो गई!');
   }
 
   function stopLocalMedia() {
@@ -268,10 +285,11 @@
       currentStream.getTracks().forEach(t => t.stop());
       currentStream = null;
     }
-    if (currentCall) {
-      try { currentCall.close(); } catch (e) {}
-      currentCall = null;
-    }
+    activeCalls.forEach(call => {
+      try { call.close(); } catch (e) {}
+    });
+    activeCalls = [];
+
     document.getElementById('camera-preview').style.display = 'none';
     const galVid = document.getElementById('gallery-video-player');
     galVid.pause();
@@ -281,7 +299,7 @@
   }
 
   function stopEverything() {
-    sendFast({ stopAll: true }, '⏹ TV तुरंत बंद कर दिया गया।');
+    sendCommand({ stopAll: true }, '⏹ सभी TV तुरंत बंद कर दिए गए।');
     stopLocalMedia();
   }
 </script>

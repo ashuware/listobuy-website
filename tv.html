@@ -4,20 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>अंशी TV</title>
+  <link rel="icon" href="data:,">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="preconnect" href="https://0.peerjs.com" crossorigin>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #000; color: #fff; font-family: Arial, sans-serif; overflow: hidden; height: 100vh; width: 100vw; }
     #player-container { position: relative; width: 100%; height: 100%; }
     
-    video, #tv-photo, #yt-frame {
+    video, #tv-photo, #yt-container {
       width: 100%; height: 100%; position: absolute; inset: 0; background: #000; border: none;
     }
     video { object-fit: cover; display: none; z-index: 5; }
     #tv-photo { object-fit: contain; display: none; z-index: 6; }
-    #yt-frame { display: none; z-index: 7; }
+    #yt-container { display: none; z-index: 7; }
+    #yt-container iframe { width: 100%; height: 100%; border: none; }
 
     #unmute-overlay {
       position: absolute; inset: 0; background: rgba(0,0,0,0.92);
@@ -96,7 +98,7 @@
   </div>
 
   <img id="tv-photo" alt="">
-  <iframe id="yt-frame" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
+  <div id="yt-container"></div>
   <video id="live-video" autoplay playsinline></video>
 
   <div id="ticker-bar">
@@ -108,9 +110,13 @@
 </div>
 
 <script>
+  // apni Supabase Details yahan dalen:
+  const SUPABASE_URL = 'https://mnscrpceekdbikgugaif.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_b-oIZWE82mCJZWHZrwKGhQ_MwBdRAlG';
+
   const videoEl = document.getElementById('live-video');
   const photoEl = document.getElementById('tv-photo');
-  const ytFrame = document.getElementById('yt-frame');
+  const ytContainer = document.getElementById('yt-container');
   const standbyEl = document.getElementById('standby-screen');
   const marqueeEl = document.getElementById('marquee-text');
   const connBadge = document.getElementById('conn-badge');
@@ -118,8 +124,7 @@
   const startBtn = document.getElementById('start-btn');
 
   let activeIncomingCall = null;
-  let peer = null;
-  const CHANNEL_ID = 'aashish-domain-live-tv-01';
+  let myPeerId = null;
 
   function startTV() {
     unmuteOverlay.style.display = 'none';
@@ -136,6 +141,8 @@
     if (newMode !== 'video') {
       videoEl.pause();
       videoEl.srcObject = null;
+      videoEl.removeAttribute('src');
+      videoEl.load();
       videoEl.style.display = 'none';
       if (activeIncomingCall) {
         const oldCall = activeIncomingCall;
@@ -146,11 +153,12 @@
 
     if (newMode !== 'photo') {
       photoEl.style.display = 'none';
+      photoEl.removeAttribute('src');
     }
 
     if (newMode !== 'youtube') {
-      ytFrame.src = 'about:blank';
-      ytFrame.style.display = 'none';
+      ytContainer.innerHTML = '';
+      ytContainer.style.display = 'none';
     }
 
     standbyEl.style.display = (newMode === 'standby') ? 'flex' : 'none';
@@ -186,93 +194,92 @@
     return lines.join('\r\n');
   }
 
-  function initPeer() {
-    if (peer) {
-      try { peer.destroy(); } catch (e) {}
+  const peer = new Peer({
+    config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+  });
+
+  peer.on('open', (id) => {
+    myPeerId = id;
+    announcePresence();
+  });
+
+  peer.on('call', (call) => {
+    if (activeIncomingCall && activeIncomingCall !== call) {
+      const prev = activeIncomingCall;
+      activeIncomingCall = null;
+      try { prev.close(); } catch (e) {}
     }
 
-    // Empty iceServers on same Wi-Fi connects in 0.1s; Google STUN added as fallback
-    peer = new Peer(CHANNEL_ID, {
-      config: {
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-      }
-    });
+    activeIncomingCall = call;
+    switchMode('video');
+    call.answer(null, { sdpTransform: forceH264 });
 
-    peer.on('open', () => {
-      connBadge.style.color = '#4ade80';
-      connBadge.innerText = '🟢 अंशी TV ऑनलाइन है';
-    });
-
-    peer.on('error', (err) => {
-      connBadge.style.color = '#f87171';
-      connBadge.innerText = err.type === 'unavailable-id'
-        ? '⚠️ दूसरे टैब में TV खुला है, उसे बंद करें'
-        : '🟡 Reconnecting...';
-      setTimeout(initPeer, 1500);
-    });
-
-    peer.on('disconnected', () => {
-      if (peer && !peer.destroyed) peer.reconnect();
-    });
-
-    peer.on('connection', (conn) => {
-      conn.on('data', (data) => {
-        if (data.marquee) marqueeEl.innerText = data.marquee;
-
-        if (data.youtubeUrl) {
-          const ytId = extractYouTubeID(data.youtubeUrl);
-          if (ytId) {
-            switchMode('youtube');
-            ytFrame.style.display = 'block';
-            ytFrame.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
-          }
-        }
-
-        if (data.photo) {
-          switchMode('photo');
-          photoEl.onload = () => {
-            photoEl.style.display = 'block';
-          };
-          photoEl.src = data.photo;
-        }
-
-        if (data.stopAll) {
-          switchMode('standby');
-        }
+    call.on('stream', (remoteStream) => {
+      if (activeIncomingCall !== call) return;
+      videoEl.style.display = 'block';
+      videoEl.srcObject = remoteStream;
+      videoEl.play().catch(() => {
+        videoEl.muted = true;
+        videoEl.play();
       });
     });
 
-    peer.on('call', (call) => {
-      if (activeIncomingCall && activeIncomingCall !== call) {
-        const prev = activeIncomingCall;
+    call.on('close', () => {
+      if (activeIncomingCall === call) {
         activeIncomingCall = null;
-        try { prev.close(); } catch (e) {}
+        switchMode('standby');
       }
-
-      activeIncomingCall = call;
-      switchMode('video');
-      call.answer(null, { sdpTransform: forceH264 });
-
-      call.on('stream', (remoteStream) => {
-        if (activeIncomingCall !== call) return;
-        videoEl.style.display = 'block';
-        videoEl.srcObject = remoteStream;
-        videoEl.play().catch(() => {
-          videoEl.muted = true;
-          videoEl.play();
-        });
-      });
-
-      call.on('close', () => {
-        if (activeIncomingCall === call) {
-          activeIncomingCall = null;
-          switchMode('standby');
-        }
-      });
     });
+  });
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const channel = sb.channel('anshi-tv-live-room', {
+    config: { broadcast: { self: false } }
+  });
+
+  function announcePresence() {
+    if (myPeerId) {
+      channel.send({
+        type: 'broadcast',
+        event: 'tv-online',
+        payload: { peerId: myPeerId }
+      });
+    }
   }
 
-  initPeer();
+  channel
+    .on('broadcast', { event: 'tv-command' }, ({ payload }) => {
+      if (payload.marquee) marqueeEl.innerText = payload.marquee;
+
+      if (payload.youtubeUrl) {
+        const ytId = extractYouTubeID(payload.youtubeUrl);
+        if (ytId) {
+          switchMode('youtube');
+          ytContainer.style.display = 'block';
+          ytContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media; fullscreen"></iframe>`;
+        }
+      }
+
+      if (payload.photo) {
+        switchMode('photo');
+        photoEl.onload = () => { photoEl.style.display = 'block'; };
+        photoEl.src = payload.photo;
+      }
+
+      if (payload.stopAll) {
+        switchMode('standby');
+      }
+    })
+    .on('broadcast', { event: 'who-is-online' }, () => {
+      announcePresence();
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        connBadge.style.color = '#4ade80';
+        connBadge.innerText = '🟢 अंशी TV ऑनलाइन है';
+        announcePresence();
+      }
+    });
 </script>
 </body>
 </html>
