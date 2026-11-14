@@ -72,6 +72,7 @@
     <span class="tv-box">TV</span>
   </div>
 
+  <div id="dbg" style="position:fixed;left:10px;bottom:54px;z-index:30;font-size:11px;color:#4ade80;background:rgba(0,0,0,.6);padding:2px 6px;pointer-events:none;display:none"></div>
   <img id="tv-photo" alt="">
   <div id="yt-container"></div>
   <video id="live-video" autoplay playsinline></video>
@@ -256,6 +257,20 @@
     } catch (e) {}
   }
 
+  // Chhoti debug line: TV ke neeche-left me dikhti hai (V=video track, A=audio track)
+  var dbgEl = document.getElementById('dbg');
+  function showDbg(stream) {
+    try {
+      var v = stream.getVideoTracks().length, a = stream.getAudioTracks().length;
+      dbgEl.innerText = 'V:' + v + ' A:' + a + (videoEl.muted ? ' 🔇' : ' 🔊');
+      dbgEl.style.display = 'block';
+      setTimeout(function() { dbgEl.style.display = 'none'; }, 15000);
+    } catch (e) {}
+  }
+  videoEl.addEventListener('playing', function() {
+    if (videoEl.srcObject) showDbg(videoEl.srcObject);
+  });
+
   function setBadge(color, text) {
     connBadge.style.color = color;
     connBadge.innerText = text;
@@ -337,7 +352,14 @@
         if (activeIncomingCall !== call) return;
         applyLowLatency(call);
         videoEl.style.display = 'block';
-        videoEl.srcObject = remoteStream;
+        showDbg(remoteStream);
+        // Audio+video me 'stream' event 2 baar aa sakta hai; wahi stream dobara lagane se video reset/black ho jata hai
+        if (videoEl.srcObject === remoteStream) {
+          videoEl.muted = !isUnlocked;
+          if (!videoEl.paused) return;
+        } else {
+          videoEl.srcObject = remoteStream;
+        }
         videoEl.muted = !isUnlocked;
         videoEl.volume = 1.0;
         var pl = videoEl.play();
