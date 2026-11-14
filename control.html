@@ -362,7 +362,9 @@
       liveState.youtubeUrl = null;
       liveState.photoData = null;
       broadcastStream(currentStream);
-      setStatus('🔴 लाइव कैमरा चालू है!');
+      setStatus(currentStream.getAudioTracks().length
+        ? '🔴 लाइव कैमरा + माइक चालू है!'
+        : '⚠️ कैमरा चालू है पर माइक नहीं मिला (Mic permission Allow करें)', currentStream.getAudioTracks().length === 0);
     } catch (err) {
       setStatus('Camera/Mic Error: ' + err.message, true);
     }

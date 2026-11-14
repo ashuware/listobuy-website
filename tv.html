@@ -148,6 +148,13 @@
 
   window.addEventListener('keydown', function(e) {
     if (!isUnlocked) { unlockTV(); return; }
+    // Remote ka koi bhi button dabane par sound dobara chalu karne ki koshish
+    if (videoEl.srcObject) {
+      videoEl.muted = false;
+      videoEl.volume = 1.0;
+      var pl2 = videoEl.play();
+      if (pl2 && pl2.catch) pl2.catch(function() {});
+    }
     e.preventDefault();
     e.stopPropagation();
   }, true);
@@ -336,8 +343,17 @@
         var pl = videoEl.play();
         if (pl && pl.catch) {
           pl.catch(function() {
-            videoEl.muted = true;
-            videoEl.play();
+            // Unlock ho chuka ho to sound band na karein, bas dobara try karein
+            if (isUnlocked) {
+              setTimeout(function() {
+                videoEl.muted = false;
+                var p2 = videoEl.play();
+                if (p2 && p2.catch) p2.catch(function() { videoEl.muted = true; videoEl.play(); });
+              }, 300);
+            } else {
+              videoEl.muted = true;
+              videoEl.play();
+            }
           });
         }
       });
