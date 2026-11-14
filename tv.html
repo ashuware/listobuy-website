@@ -4,26 +4,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>अंशी TV</title>
+  <!-- Preconnect to YouTube & PeerJS servers for zero DNS/SSL delay -->
+  <link rel="preconnect" href="https://www.youtube-nocookie.com">
+  <link rel="preconnect" href="https://www.youtube.com">
+  <link rel="preconnect" href="https://i.ytimg.com">
+  <link rel="preconnect" href="https://0.peerjs.com">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #000; color: #fff; font-family: Arial, sans-serif; overflow: hidden; height: 100vh; width: 100vw; }
     #player-container { position: relative; width: 100%; height: 100%; }
     
-    video, #tv-photo, #yt-frame {
+    video, #tv-photo, #yt-wrapper {
       width: 100%; height: 100%; position: absolute; inset: 0; background: #000; border: none;
     }
     video { object-fit: cover; display: none; z-index: 5; }
     #tv-photo { object-fit: contain; display: none; z-index: 6; }
-    #yt-frame { display: none; z-index: 7; }
+    #yt-wrapper { display: none; z-index: 7; }
+    #yt-player { width: 100%; height: 100%; }
 
     #unmute-overlay {
-      position: absolute; inset: 0; background: rgba(0,0,0,0.9);
-      display: flex; align-items: center; justify-content: center; z-index: 50;
+      position: absolute; inset: 0; background: rgba(0,0,0,0.92);
+      display: flex; align-items: center; justify-content: center; z-index: 50; cursor: pointer;
     }
     #unmute-overlay button {
       padding: 18px 36px; font-size: 20px; font-weight: bold;
-      background: #e60000; color: #fff; border: 2px solid #ffcc00; border-radius: 10px;
+      background: #e60000; color: #fff; border: 2px solid #ffcc00; border-radius: 10px; cursor: pointer;
     }
 
     #standby-screen {
@@ -31,11 +37,11 @@
       align-items: center; justify-content: center; color: #aaa; z-index: 2;
     }
     #standby-screen h3 { color: #ffcc00; font-size: 28px; margin-bottom: 8px; }
+    #conn-badge { font-size: 13px; color: #4ade80; margin-top: 6px; }
 
-    /* Lightweight Top Bar (No heavy blur filters) */
     #datetime-box {
       position: absolute; top: 18px; left: 22px; z-index: 20;
-      background: rgba(0, 0, 0, 0.8); border-left: 4px solid #ffcc00; padding: 6px 12px;
+      background: rgba(0, 0, 0, 0.85); border-left: 4px solid #ffcc00; padding: 6px 12px;
     }
     #live-time { font-size: 18px; font-weight: bold; }
     #live-day-date { font-size: 12px; color: #ffcc00; margin-top: 2px; }
@@ -49,7 +55,6 @@
     .tv-box { background: #e60000; color: #fff; font-weight: 900; font-size: 16px; padding: 2px 6px; border-radius: 4px; }
     .live-dot { width: 10px; height: 10px; background: #ff0000; border-radius: 50%; }
 
-    /* Smooth GPU Ticker (Replaces laggy marquee tag) */
     #ticker-bar {
       position: absolute; bottom: 0; left: 0; width: 100%; height: 46px;
       background: #990000; display: flex; align-items: center; z-index: 20; border-top: 2px solid #ffcc00;
@@ -62,11 +67,11 @@
     #ticker-wrap { flex: 1; overflow: hidden; white-space: nowrap; }
     #marquee-text {
       display: inline-block; padding-left: 100%; font-size: 20px; font-weight: bold;
-      animation: scroll-left 18s linear infinite;
+      animation: scroll-left 18s linear infinite; will-change: transform;
     }
     @keyframes scroll-left {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-100%); }
+      0% { transform: translate3d(0, 0, 0); }
+      100% { transform: translate3d(-100%, 0, 0); }
     }
   </style>
 </head>
@@ -80,6 +85,7 @@
   <div id="standby-screen">
     <h3>📡 अंशी TV LIVE</h3>
     <p>प्रसारण की प्रतीक्षा है...</p>
+    <div id="conn-badge">⏳ सर्वर से जुड़ रहा है...</div>
   </div>
 
   <div id="datetime-box">
@@ -94,9 +100,10 @@
   </div>
 
   <img id="tv-photo" alt="">
-  <iframe id="yt-frame" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
+  <div id="yt-wrapper">
+    <div id="yt-player"></div>
+  </div>
   <video id="live-video" autoplay playsinline></video>
-  <audio id="live-audio" autoplay></audio>
 
   <div id="ticker-bar">
     <div id="breaking-tag">ताज़ा ख़बर</div>
@@ -106,15 +113,59 @@
   </div>
 </div>
 
+<!-- Load Official YouTube IFrame API asynchronously -->
+<script src="https://www.youtube.com/iframe_api"></script>
 <script>
   const videoEl = document.getElementById('live-video');
-  const audioEl = document.getElementById('live-audio');
   const photoEl = document.getElementById('tv-photo');
-  const ytFrame = document.getElementById('yt-frame');
+  const ytWrapper = document.getElementById('yt-wrapper');
   const standbyEl = document.getElementById('standby-screen');
   const marqueeEl = document.getElementById('marquee-text');
+  const connBadge = document.getElementById('conn-badge');
 
-  // Auto focus button for TV Remote OK click
+  let activeIncomingCall = null;
+  let ytPlayer = null;
+  let ytReady = false;
+  let pendingYtId = null;
+
+  // Initialize pre-warmed YouTube player once on page load
+  function onYouTubeIframeAPIReady() {
+    ytPlayer = new YT.Player('yt-player', {
+      height: '100%',
+      width: '100%',
+      host: 'https://www.youtube-nocookie.com',
+      playerVars: {
+        autoplay: 1,
+        controls: 0,
+        rel: 0,
+        modestbranding: 1,
+        playsinline: 1,
+        iv_load_policy: 3
+      },
+      events: {
+        onReady: () => {
+          ytReady = true;
+          if (pendingYtId) {
+            playYouTubeFast(pendingYtId);
+            pendingYtId = null;
+          }
+        }
+      }
+    });
+  }
+
+  function playYouTubeFast(ytId) {
+    hardStopAll(false);
+    ytWrapper.style.display = 'block';
+    if (ytReady && ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
+      ytPlayer.unMute();
+      ytPlayer.setVolume(100);
+      ytPlayer.loadVideoById({ videoId: ytId, suggestedQuality: 'hd720' });
+    } else {
+      pendingYtId = ytId;
+    }
+  }
+
   window.onload = () => document.getElementById('start-btn').focus();
 
   function updateClock() {
@@ -131,26 +182,77 @@
     document.getElementById('unmute-overlay').style.display = 'none';
     videoEl.muted = false;
     videoEl.volume = 1.0;
-    audioEl.muted = false;
-    audioEl.volume = 1.0;
-    if (videoEl.srcObject) {
-      videoEl.play();
-      audioEl.play();
+    if (videoEl.srcObject) videoEl.play().catch(() => {});
+    if (ytReady && ytPlayer) {
+      ytPlayer.unMute();
+      ytPlayer.setVolume(100);
     }
   }
 
   function extractYouTubeID(url) {
-    const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/)([^#\&\?]*).*/);
-    return (match && match[2].length === 11) ? match[2] : null;
+    const regExp = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([^#&?]{11})/;
+    const match = url.match(regExp);
+    return match ? match[1] : null;
+  }
+
+  function forceH264(sdp) {
+    const lines = sdp.split('\r\n');
+    const mLineIndex = lines.findIndex(l => l.startsWith('m=video'));
+    if (mLineIndex === -1) return sdp;
+    const h264Payloads = lines
+      .filter(l => l.startsWith('a=rtpmap:') && l.toLowerCase().includes('h264'))
+      .map(l => l.split(':')[1].split(' ')[0]);
+    if (!h264Payloads.length) return sdp;
+    const mParts = lines[mLineIndex].split(' ');
+    const others = mParts.slice(3).filter(p => !h264Payloads.includes(p));
+    lines[mLineIndex] = [...mParts.slice(0, 3), ...h264Payloads, ...others].join(' ');
+    return lines.join('\r\n');
+  }
+
+  function hardStopAll(showStandby = false) {
+    if (activeIncomingCall) {
+      try { activeIncomingCall.close(); } catch (e) {}
+      activeIncomingCall = null;
+    }
+    videoEl.pause();
+    if (videoEl.srcObject) {
+      videoEl.srcObject.getTracks().forEach(t => t.stop());
+      videoEl.srcObject = null;
+    }
+    videoEl.removeAttribute('src');
+    videoEl.load();
+    videoEl.style.display = 'none';
+
+    photoEl.style.display = 'none';
+    photoEl.removeAttribute('src');
+
+    // Stop YouTube playback without destroying pre-warmed player instance
+    if (ytReady && ytPlayer && typeof ytPlayer.stopVideo === 'function') {
+      try { ytPlayer.stopVideo(); } catch (e) {}
+    }
+    ytWrapper.style.display = 'none';
+
+    standbyEl.style.display = showStandby ? 'flex' : 'none';
   }
 
   const CHANNEL_ID = 'aashish-domain-live-tv-01';
   const peer = new Peer(CHANNEL_ID, {
     config: {
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
-      ]
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ],
+      sdpSemantics: 'unified-plan'
     }
+  });
+
+  peer.on('open', () => {
+    connBadge.innerText = '🟢 अंशी TV ऑनलाइन है (Ready)';
+  });
+
+  peer.on('disconnected', () => {
+    connBadge.innerText = '🟡 Reconnecting...';
+    peer.reconnect();
   });
 
   peer.on('connection', (conn) => {
@@ -159,60 +261,37 @@
 
       if (data.youtubeUrl) {
         const ytId = extractYouTubeID(data.youtubeUrl);
-        if (ytId) {
-          videoEl.srcObject = null;
-          audioEl.srcObject = null;
-          videoEl.style.display = 'none';
-          photoEl.style.display = 'none';
-          standbyEl.style.display = 'none';
-          ytFrame.style.display = 'block';
-          ytFrame.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`;
-        }
+        if (ytId) playYouTubeFast(ytId);
       }
 
       if (data.photo) {
-        videoEl.srcObject = null;
-        audioEl.srcObject = null;
-        videoEl.style.display = 'none';
-        ytFrame.src = '';
-        ytFrame.style.display = 'none';
-        standbyEl.style.display = 'none';
+        hardStopAll(false);
         photoEl.src = data.photo;
         photoEl.style.display = 'block';
       }
 
       if (data.stopAll) {
-        videoEl.srcObject = null;
-        audioEl.srcObject = null;
-        videoEl.style.display = 'none';
-        photoEl.style.display = 'none';
-        ytFrame.src = '';
-        ytFrame.style.display = 'none';
-        standbyEl.style.display = 'flex';
+        hardStopAll(true);
       }
     });
   });
 
   peer.on('call', (call) => {
-    call.answer();
+    hardStopAll(false);
+    activeIncomingCall = call;
+    call.answer(null, { sdpTransform: forceH264 });
+
     call.on('stream', (remoteStream) => {
-      photoEl.style.display = 'none';
-      ytFrame.src = '';
-      ytFrame.style.display = 'none';
-      standbyEl.style.display = 'none';
-      
       videoEl.style.display = 'block';
       videoEl.srcObject = remoteStream;
-      videoEl.muted = false;
-      videoEl.volume = 1.0;
+      videoEl.play().catch(() => {
+        videoEl.muted = true;
+        videoEl.play();
+      });
+    });
 
-      // Dedicated audio track binding for Android TV boxes
-      audioEl.srcObject = remoteStream;
-      audioEl.muted = false;
-      audioEl.volume = 1.0;
-
-      videoEl.play().catch(() => {});
-      audioEl.play().catch(() => {});
+    call.on('close', () => {
+      hardStopAll(true);
     });
   });
 </script>
