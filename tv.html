@@ -13,48 +13,39 @@
       background: #000; color: #fff; font-family: Arial, sans-serif;
       overflow: hidden; height: 100%; width: 100%;
     }
-    #player-container { position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; pointer-events: none; }
+    #player-container { position: fixed; inset: 0; width: 100%; height: 100%; }
     
-    /* 100% Full-Screen Video & Media for DishTV & Smart TV Browsers */
     #live-video {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      width: 100%; height: 100%; min-width: 100%; min-height: 100%;
-      object-fit: fill; -o-object-fit: fill;
-      background: #000; border: none; display: none; z-index: 5; pointer-events: none;
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; background: #000; border: none; display: none; z-index: 5;
     }
     #tv-photo {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      width: 100%; height: 100%; object-fit: contain;
-      background: #000; border: none; display: none; z-index: 6; pointer-events: none;
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      object-fit: contain; background: #000; border: none; display: none; z-index: 6;
     }
     #yt-container {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      width: 100%; height: 100%; background: #000; display: none; z-index: 7; overflow: hidden; pointer-events: none;
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      background: #000; display: none; z-index: 7; overflow: hidden;
     }
     #yt-container iframe {
-      position: absolute; top: -2%; left: -2%; width: 104%; height: 104%;
-      border: none; pointer-events: none;
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      border: none;
     }
 
     #fs-unlock-overlay {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 10000;
-      background: rgba(0, 0, 0, 0.9);
+      position: fixed; inset: 0; z-index: 10000;
+      background: rgba(0, 0, 0, 0.88);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      cursor: pointer; pointer-events: auto; text-align: center; padding: 20px;
+      cursor: pointer; text-align: center; padding: 20px;
     }
     #fs-unlock-btn {
-      padding: 20px 38px; font-size: 22px; font-weight: bold;
+      padding: 18px 34px; font-size: 20px; font-weight: bold;
       background: #e60000; color: #fff; border: 3px solid #ffcc00;
       border-radius: 12px; cursor: pointer;
     }
 
-    #tv-input-shield {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999;
-      background: transparent; pointer-events: auto; cursor: none; display: none;
-    }
-
     #standby-screen {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      position: fixed; inset: 0;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       color: #aaa; z-index: 2; text-align: center; padding: 20px;
     }
@@ -64,6 +55,7 @@
     #datetime-box {
       position: fixed; top: 18px; left: 22px; z-index: 20;
       background: rgba(0, 0, 0, 0.85); border-left: 4px solid #ffcc00; padding: 6px 12px;
+      pointer-events: none;
     }
     #live-time { font-size: 18px; font-weight: bold; }
     #live-day-date { font-size: 12px; color: #ffcc00; margin-top: 2px; }
@@ -72,6 +64,7 @@
       position: fixed; top: 18px; right: 22px; z-index: 20;
       display: flex; align-items: center; gap: 8px;
       background: rgba(0, 0, 0, 0.85); padding: 6px 14px; border: 1.5px solid #ffcc00; border-radius: 6px;
+      pointer-events: none;
     }
     .anshi-hindi { font-size: 22px; font-weight: 900; color: #ffcc00; }
     .tv-box { background: #e60000; color: #fff; font-weight: 900; font-size: 16px; padding: 2px 6px; border-radius: 4px; }
@@ -80,7 +73,7 @@
     #ticker-bar {
       position: fixed; bottom: 0; left: 0; width: 100%; height: 46px;
       background: #990000; display: flex; align-items: center; z-index: 20; border-top: 2px solid #ffcc00;
-      overflow: hidden;
+      overflow: hidden; pointer-events: none;
     }
     #breaking-tag {
       background: #ffcc00; color: #000; font-weight: 900; padding: 0 16px;
@@ -100,16 +93,14 @@
 <body>
 
 <div id="fs-unlock-overlay">
-  <button id="fs-unlock-btn">📺 Full Screen + Sound चालू करें (OK दबाएं)</button>
+  <button id="fs-unlock-btn">📺 अंशी TV चालू करें (Full Screen + Sound)</button>
 </div>
-
-<div id="tv-input-shield"></div>
 
 <div id="player-container">
   <div id="standby-screen">
     <h3>📡 अंशी TV LIVE</h3>
     <p>प्रसारण की प्रतीक्षा है...</p>
-    <div id="conn-badge">⏳ जुड़ रहा है...</div>
+    <div id="conn-badge">⏳ रिमोट से जुड़ रहा है...</div>
   </div>
 
   <div id="datetime-box">
@@ -136,6 +127,25 @@
 </div>
 
 <script>
+  var CONTROLLER_ID = 'anshi-tv-master-controller-99';
+
+  var ICE_CONFIG = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      {
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
+    ]
+  };
+
   var videoEl = document.getElementById('live-video');
   var photoEl = document.getElementById('tv-photo');
   var ytContainer = document.getElementById('yt-container');
@@ -144,44 +154,24 @@
   var connBadge = document.getElementById('conn-badge');
   var fsOverlay = document.getElementById('fs-unlock-overlay');
   var fsBtn = document.getElementById('fs-unlock-btn');
-  var inputShield = document.getElementById('tv-input-shield');
 
   var isUnlocked = false;
   var activeIncomingCall = null;
   var peer = null;
-  var currentSlot = 1;
-  var MAX_SLOTS = 10;
+  var masterConn = null;
   var currentMode = 'standby';
   var activeYtUrl = null;
   var activeYtStartedAt = 0;
 
-  if (sessionStorage.getItem('anshi_tv_unlocked') === '1') {
+  function unlockTV() {
     isUnlocked = true;
     fsOverlay.style.display = 'none';
-    inputShield.style.display = 'block';
-    document.body.style.cursor = 'none';
-  }
-
-  function enterFullScreenAndSound(e) {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    if (isUnlocked) return;
-    isUnlocked = true;
-    sessionStorage.setItem('anshi_tv_unlocked', '1');
-
-    fsOverlay.style.display = 'none';
-    inputShield.style.display = 'block';
-    document.body.style.cursor = 'none';
 
     var elem = document.documentElement;
     if (elem.requestFullscreen) {
       elem.requestFullscreen().catch(function() {});
     } else if (elem.webkitRequestFullscreen) {
       elem.webkitRequestFullscreen();
-    } else if (elem.msRequestFullscreen) {
-      elem.msRequestFullscreen();
     }
 
     videoEl.muted = false;
@@ -196,22 +186,19 @@
     }
   }
 
-  fsOverlay.addEventListener('click', enterFullScreenAndSound);
-  fsBtn.addEventListener('click', enterFullScreenAndSound);
+  fsOverlay.addEventListener('click', unlockTV);
+  fsBtn.addEventListener('click', unlockTV);
   window.addEventListener('load', function() { fsBtn.focus(); });
 
-  var lockEvents = ['keydown', 'keyup', 'keypress', 'click', 'dblclick', 'mousedown', 'mouseup', 'contextmenu', 'touchstart'];
-  for (var i = 0; i < lockEvents.length; i++) {
-    window.addEventListener(lockEvents[i], function(e) {
-      if (!isUnlocked) {
-        enterFullScreenAndSound(e);
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }, true);
-  }
+  // Block TV remote keys only after unlocked
+  window.addEventListener('keydown', function(e) {
+    if (!isUnlocked) {
+      unlockTV();
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
 
   function switchMode(newMode) {
     currentMode = newMode;
@@ -252,9 +239,8 @@
     var sec = Math.max(0, parseInt(startSec, 10) || 0);
     activeYtStartedAt = Date.now() - (sec * 1000);
     var muteFlag = isUnlocked ? 0 : 1;
-    var originParam = encodeURIComponent(window.location.origin || 'https://listobuy.online');
     ytContainer.style.display = 'block';
-    ytContainer.innerHTML = '<iframe src="https://www.youtube.com/embed/' + ytId + '?autoplay=1&mute=' + muteFlag + '&start=' + sec + '&controls=0&disablekb=1&rel=0&modestbranding=1&playsinline=1&origin=' + originParam + '" allow="autoplay; encrypted-media; fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>';
+    ytContainer.innerHTML = '<iframe src="https://www.youtube.com/embed/' + ytId + '?autoplay=1&mute=' + muteFlag + '&start=' + sec + '&rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>';
   }
 
   function updateClock() {
@@ -299,62 +285,62 @@
     return lines.join('\r\n');
   }
 
-  function initPeer(slot) {
-    currentSlot = slot || 1;
-    if (peer) {
-      try { peer.destroy(); } catch (e) {}
-    }
+  function connectToController() {
+    if (!peer || peer.disconnected || peer.destroyed || !peer.id) return;
+    if (masterConn && masterConn.open) return;
 
-    var slotId = 'anshi-tv-slot-' + currentSlot;
-    peer = new Peer(slotId, {
-      config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+    masterConn = peer.connect(CONTROLLER_ID, { reliable: true });
+
+    masterConn.on('open', function() {
+      connBadge.style.color = '#4ade80';
+      connBadge.innerText = '🟢 अंशी TV रिमोट से जुड़ गया है';
     });
+
+    masterConn.on('data', function(data) {
+      if (!data) return;
+
+      if (data.forceRefresh) {
+        window.location.reload();
+        return;
+      }
+
+      if (data.marquee) marqueeEl.innerText = data.marquee;
+
+      if (data.youtubeUrl) {
+        playYouTubeAt(data.youtubeUrl, data.startSeconds || 0);
+      }
+
+      if (data.photo) {
+        switchMode('photo');
+        photoEl.onload = function() { photoEl.style.display = 'block'; };
+        photoEl.src = data.photo;
+      }
+
+      if (data.stopAll) {
+        switchMode('standby');
+      }
+    });
+
+    masterConn.on('close', function() {
+      connBadge.style.color = '#facc15';
+      connBadge.innerText = '🟡 रिमोट की प्रतीक्षा है...';
+      masterConn = null;
+    });
+
+    masterConn.on('error', function() {
+      masterConn = null;
+    });
+  }
+
+  function initTVPeer() {
+    peer = new Peer({ config: ICE_CONFIG });
 
     peer.on('open', function() {
-      connBadge.style.color = '#4ade80';
-      connBadge.innerText = '🟢 अंशी TV ऑनलाइन है (Screen #' + currentSlot + ')';
-    });
-
-    peer.on('error', function(err) {
-      if (err && err.type === 'unavailable-id') {
-        var nextSlot = currentSlot < MAX_SLOTS ? currentSlot + 1 : 1;
-        initPeer(nextSlot);
-      } else {
-        connBadge.style.color = '#facc15';
-        connBadge.innerText = '🟡 Reconnecting...';
-        setTimeout(function() { initPeer(currentSlot); }, 2000);
-      }
+      connectToController();
     });
 
     peer.on('disconnected', function() {
       if (peer && !peer.destroyed) peer.reconnect();
-    });
-
-    peer.on('connection', function(conn) {
-      conn.on('data', function(data) {
-        if (!data) return;
-
-        if (data.forceRefresh) {
-          window.location.href = 'https://listobuy.online/tv.html?t=' + Date.now();
-          return;
-        }
-
-        if (data.marquee) marqueeEl.innerText = data.marquee;
-
-        if (data.youtubeUrl) {
-          playYouTubeAt(data.youtubeUrl, data.startSeconds || 0);
-        }
-
-        if (data.photo) {
-          switchMode('photo');
-          photoEl.onload = function() { photoEl.style.display = 'block'; };
-          photoEl.src = data.photo;
-        }
-
-        if (data.stopAll) {
-          switchMode('standby');
-        }
-      });
     });
 
     peer.on('call', function(call) {
@@ -372,7 +358,7 @@
         if (activeIncomingCall !== call) return;
         videoEl.style.display = 'block';
         videoEl.srcObject = remoteStream;
-        videoEl.muted = false;
+        videoEl.muted = !isUnlocked;
         videoEl.volume = 1.0;
         videoEl.play().catch(function() {
           videoEl.muted = true;
@@ -389,7 +375,8 @@
     });
   }
 
-  initPeer(1);
+  initTVPeer();
+  setInterval(connectToController, 3000);
 </script>
 </body>
 </html>
