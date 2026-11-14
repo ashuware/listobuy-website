@@ -25,7 +25,6 @@
       width: 100%; padding: 12px 10px; border: none; border-radius: 8px;
       font-weight: bold; font-size: 14px; cursor: pointer;
     }
-    .btn-cast { background: #2563eb; color: #fff; font-size: 15px; margin-bottom: 8px; }
     .btn-live { background: #e60000; color: #fff; }
     .btn-stop { background: #333; color: #fff; }
     .btn-switch { background: #262626; color: #ddd; margin-top: 8px; padding: 10px; font-size: 13px; }
@@ -41,7 +40,7 @@
     }
     video {
       width: 100%; height: 180px; background: #000; margin-top: 8px;
-      border-radius: 8px; object-fit: contain; display: none;
+      border-radius: 8px; object-fit: cover; display: none;
     }
     #status { margin-bottom: 10px; font-size: 13px; color: #4ade80; text-align: center; font-weight: bold; min-height: 18px; }
   </style>
@@ -55,19 +54,18 @@
   <div id="status"></div>
 
   <div class="card">
-    <div class="card-title">1. लाइव स्क्रीन कास्ट + कैमरा</div>
-    <button class="btn-cast" onclick="startScreenCast()">🖥️ Cast Screen + Audio (Direct Live)</button>
+    <div class="card-title">1. लाइव कैमरा (16:9 Full Screen + Audio)</div>
     <div class="row-btns">
-      <button class="btn-live" onclick="startCamera()">🔴 Go Live (Camera)</button>
+      <button class="btn-live" onclick="startCamera()">🔴 Go Live</button>
       <button class="btn-stop" onclick="stopEverything()">⏹ Stop All TVs</button>
     </div>
     <button class="btn-switch" onclick="switchCamera()">🔄 कैमरा बदलें (Front/Back)</button>
-    <button class="btn-refresh" onclick="refreshAllTVs()">🔄 Refresh All TVs</button>
-    <video id="live-preview" muted autoplay playsinline></video>
+    <button class="btn-refresh" onclick="refreshAllTVs()">🔄 Refresh All TVs (Live Sync)</button>
+    <video id="camera-preview" muted autoplay playsinline></video>
   </div>
 
   <div class="card">
-    <div class="card-title">2. YouTube चलाएं</div>
+    <div class="card-title">2. YouTube चलाएं (Live Timestamp Sync)</div>
     <input type="text" id="yt-url" placeholder="YouTube लिंक पेस्ट करें...">
     <button class="btn-yt" onclick="playYouTubeOnTV()">▶ Play YouTube</button>
   </div>
@@ -106,7 +104,7 @@
     return lines.join('\r\n');
   }
 
-  function capVideoBitrate(call, maxKbps = 650) {
+  function capVideoBitrate(call, maxKbps = 550) {
     if (!call || !call.peerConnection) return;
     call.peerConnection.getSenders().forEach((sender) => {
       if (sender.track && sender.track.kind === 'video') {
@@ -125,7 +123,6 @@
 
   const statusEl = document.getElementById('status');
   const tvStateEl = document.getElementById('tv-state');
-  const previewEl = document.getElementById('live-preview');
   const activeConnections = {};
   let activeCalls = [];
   let currentStream = null;
@@ -155,6 +152,7 @@
     }
   }
 
+  // Whenever any new or refreshed TV connects, push exact current playback position
   function syncNewTV(slotId, conn) {
     conn.send({ marquee: liveState.marquee });
     if (liveState.mode === 'youtube' && liveState.youtubeUrl) {
@@ -165,7 +163,7 @@
     } else if (liveState.mode === 'stream' && currentStream) {
       const call = peer.call(slotId, currentStream, { sdpTransform: forceH264 });
       activeCalls.push(call);
-      setTimeout(() => capVideoBitrate(call, 650), 600);
+      setTimeout(() => capVideoBitrate(call, 550), 600);
     }
   }
 
@@ -194,7 +192,7 @@
 
   peer.on('open', scanAndConnectTVs);
   peer.on('error', () => {});
-  setInterval(scanAndConnectTVs, 3000);
+  setInterval(scanAndConnectTVs, 2000);
 
   function broadcastData(payload, successMsg) {
     const openConns = Object.values(activeConnections).filter(c => c && c.open);
@@ -214,34 +212,8 @@
     openSlots.forEach(slotId => {
       const call = peer.call(slotId, stream, { sdpTransform: forceH264 });
       activeCalls.push(call);
-      setTimeout(() => capVideoBitrate(call, 650), 600);
+      setTimeout(() => capVideoBitrate(call, 550), 600);
     });
-  }
-
-  async function startScreenCast() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-      return setStatus('⚠️ मोबाइल ब्राउज़र Screen Cast सपोर्ट नहीं करता—Laptop/PC से चलाएं।', true);
-    }
-    try {
-      stopLocalMedia();
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 25 } },
-        audio: true
-      });
-      currentStream = screenStream;
-      previewEl.srcObject = screenStream;
-      previewEl.style.display = 'block';
-
-      liveState.mode = 'stream';
-      liveState.youtubeUrl = null;
-      liveState.photoData = null;
-
-      broadcastStream(screenStream);
-      setStatus('🖥️ Live Screen + Audio चल रहा है!');
-      screenStream.getVideoTracks()[0].onended = stopEverything;
-    } catch (err) {
-      setStatus('Screen Cast Cancelled: ' + err.message, true);
-    }
   }
 
   function playYouTubeOnTV() {
@@ -314,19 +286,21 @@
       currentStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: useBackCamera ? 'environment' : 'user',
-          width: { ideal: 640 },
-          height: { ideal: 360 },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          aspectRatio: { ideal: 1.7777777778 },
           frameRate: { ideal: 24, max: 24 }
         },
         audio: true
       });
-      previewEl.srcObject = currentStream;
-      previewEl.style.display = 'block';
+      const preview = document.getElementById('camera-preview');
+      preview.srcObject = currentStream;
+      preview.style.display = 'block';
       liveState.mode = 'stream';
       liveState.youtubeUrl = null;
       liveState.photoData = null;
       broadcastStream(currentStream);
-      setStatus('🔴 लाइव कैमरा चालू है!');
+      setStatus('🔴 लाइव कैमरा फुल-स्क्रीन चालू है!');
     } catch (err) {
       setStatus('Camera/Mic Error: ' + err.message, true);
     }
@@ -353,8 +327,7 @@
       try { call.close(); } catch (e) {}
     });
     activeCalls = [];
-    previewEl.srcObject = null;
-    previewEl.style.display = 'none';
+    document.getElementById('camera-preview').style.display = 'none';
     const galVid = document.getElementById('gallery-video-player');
     galVid.pause();
     galVid.removeAttribute('src');
@@ -371,7 +344,7 @@
   }
 
   function refreshAllTVs() {
-    broadcastData({ forceRefresh: true }, '🔄 सभी TV रिफ़्रेश हो रहे हैं...');
+    broadcastData({ forceRefresh: true }, '🔄 सभी TV रिफ़्रेश होकर वहीं से लाइव चलेंगे...');
   }
 </script>
 </body>

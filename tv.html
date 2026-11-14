@@ -15,16 +15,24 @@
     }
     #player-container { position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; pointer-events: none; }
     
-    /* Full-bleed video & YouTube container for DishTV Open Browser */
-    video, #tv-photo, #yt-container {
-      width: 100%; height: 100%; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: #000; border: none; pointer-events: none;
+    /* 100% Full-Screen Video & Media for DishTV & Smart TV Browsers */
+    #live-video {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      width: 100%; height: 100%; min-width: 100%; min-height: 100%;
+      object-fit: fill; -o-object-fit: fill;
+      background: #000; border: none; display: none; z-index: 5; pointer-events: none;
     }
-    video { object-fit: cover; display: none; z-index: 5; }
-    #tv-photo { object-fit: contain; display: none; z-index: 6; }
-    #yt-container { display: none; z-index: 7; overflow: hidden; }
+    #tv-photo {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      width: 100%; height: 100%; object-fit: contain;
+      background: #000; border: none; display: none; z-index: 6; pointer-events: none;
+    }
+    #yt-container {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      width: 100%; height: 100%; background: #000; display: none; z-index: 7; overflow: hidden; pointer-events: none;
+    }
     #yt-container iframe {
-      position: absolute; top: -3%; left: -3%; width: 106%; height: 106%;
+      position: absolute; top: -2%; left: -2%; width: 104%; height: 104%;
       border: none; pointer-events: none;
     }
 
@@ -145,7 +153,14 @@
   var MAX_SLOTS = 10;
   var currentMode = 'standby';
   var activeYtUrl = null;
-  var activeYtStart = 0;
+  var activeYtStartedAt = 0;
+
+  if (sessionStorage.getItem('anshi_tv_unlocked') === '1') {
+    isUnlocked = true;
+    fsOverlay.style.display = 'none';
+    inputShield.style.display = 'block';
+    document.body.style.cursor = 'none';
+  }
 
   function enterFullScreenAndSound(e) {
     if (e) {
@@ -154,6 +169,7 @@
     }
     if (isUnlocked) return;
     isUnlocked = true;
+    sessionStorage.setItem('anshi_tv_unlocked', '1');
 
     fsOverlay.style.display = 'none';
     inputShield.style.display = 'block';
@@ -175,7 +191,8 @@
     }
 
     if (currentMode === 'youtube' && activeYtUrl) {
-      playYouTubeAt(activeYtUrl, activeYtStart);
+      var elapsed = activeYtStartedAt ? Math.max(0, Math.floor((Date.now() - activeYtStartedAt) / 1000)) : 0;
+      playYouTubeAt(activeYtUrl, elapsed);
     }
   }
 
@@ -183,7 +200,6 @@
   fsBtn.addEventListener('click', enterFullScreenAndSound);
   window.addEventListener('load', function() { fsBtn.focus(); });
 
-  // Lock all TV Remote buttons after unlock
   var lockEvents = ['keydown', 'keyup', 'keypress', 'click', 'dblclick', 'mousedown', 'mouseup', 'contextmenu', 'touchstart'];
   for (var i = 0; i < lockEvents.length; i++) {
     window.addEventListener(lockEvents[i], function(e) {
@@ -222,6 +238,7 @@
       ytContainer.innerHTML = '';
       ytContainer.style.display = 'none';
       activeYtUrl = null;
+      activeYtStartedAt = 0;
     }
 
     standbyEl.style.display = (newMode === 'standby') ? 'flex' : 'none';
@@ -232,10 +249,12 @@
     if (!ytId) return;
     switchMode('youtube');
     activeYtUrl = url;
-    activeYtStart = startSec || 0;
+    var sec = Math.max(0, parseInt(startSec, 10) || 0);
+    activeYtStartedAt = Date.now() - (sec * 1000);
     var muteFlag = isUnlocked ? 0 : 1;
+    var originParam = encodeURIComponent(window.location.origin || 'https://listobuy.online');
     ytContainer.style.display = 'block';
-    ytContainer.innerHTML = '<iframe src="https://www.youtube.com/embed/' + ytId + '?autoplay=1&mute=' + muteFlag + '&start=' + activeYtStart + '&controls=0&disablekb=1&rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media; fullscreen"></iframe>';
+    ytContainer.innerHTML = '<iframe src="https://www.youtube.com/embed/' + ytId + '?autoplay=1&mute=' + muteFlag + '&start=' + sec + '&controls=0&disablekb=1&rel=0&modestbranding=1&playsinline=1&origin=' + originParam + '" allow="autoplay; encrypted-media; fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>';
   }
 
   function updateClock() {
@@ -314,10 +333,12 @@
     peer.on('connection', function(conn) {
       conn.on('data', function(data) {
         if (!data) return;
+
         if (data.forceRefresh) {
           window.location.href = 'https://listobuy.online/tv.html?t=' + Date.now();
           return;
         }
+
         if (data.marquee) marqueeEl.innerText = data.marquee;
 
         if (data.youtubeUrl) {
