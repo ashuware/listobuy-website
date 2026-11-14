@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>अंशी TV Controller</title>
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://0.peerjs.com" crossorigin>
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -116,11 +118,7 @@
   const CHANNEL_ID = 'aashish-domain-live-tv-01';
   const peer = new Peer({
     config: {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ],
-      sdpSemantics: 'unified-plan'
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
     }
   });
 
@@ -138,7 +136,7 @@
 
   function connectToTV() {
     if (activeConn && activeConn.open) return;
-    activeConn = peer.connect(CHANNEL_ID);
+    activeConn = peer.connect(CHANNEL_ID, { reliable: true });
     activeConn.on('open', () => {
       tvStateEl.style.color = '#4ade80';
       tvStateEl.innerText = '🟢 TV Connected';
@@ -155,14 +153,14 @@
   }
 
   peer.on('open', connectToTV);
-  setInterval(connectToTV, 4000);
+  setInterval(connectToTV, 3000);
 
   function sendFast(payload, successMsg) {
     if (activeConn && activeConn.open) {
       activeConn.send(payload);
       if (successMsg) setStatus(successMsg);
     } else {
-      const tempConn = peer.connect(CHANNEL_ID);
+      const tempConn = peer.connect(CHANNEL_ID, { reliable: true });
       tempConn.on('open', () => {
         activeConn = tempConn;
         tvStateEl.style.color = '#4ade80';
@@ -187,11 +185,14 @@
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const scale = Math.min(1, 720 / img.width);
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        callback(canvas.toDataURL('image/jpeg', 0.72));
+        const scale = Math.min(1, 540 / img.width);
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        callback(canvas.toDataURL('image/jpeg', 0.45));
       };
       img.src = e.target.result;
     };

@@ -4,22 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>अंशी TV</title>
-  <link rel="preconnect" href="https://www.youtube.com">
-  <link rel="preconnect" href="https://i.ytimg.com">
-  <link rel="preconnect" href="https://0.peerjs.com">
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://0.peerjs.com" crossorigin>
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #000; color: #fff; font-family: Arial, sans-serif; overflow: hidden; height: 100vh; width: 100vw; }
     #player-container { position: relative; width: 100%; height: 100%; }
     
-    video, #tv-photo, #yt-wrapper {
+    video, #tv-photo, #yt-frame {
       width: 100%; height: 100%; position: absolute; inset: 0; background: #000; border: none;
     }
     video { object-fit: cover; display: none; z-index: 5; }
     #tv-photo { object-fit: contain; display: none; z-index: 6; }
-    #yt-wrapper { display: none; z-index: 7; }
-    #yt-player { width: 100%; height: 100%; }
+    #yt-frame { display: none; z-index: 7; }
 
     #unmute-overlay {
       position: absolute; inset: 0; background: rgba(0,0,0,0.92);
@@ -83,7 +81,7 @@
   <div id="standby-screen">
     <h3>📡 अंशी TV LIVE</h3>
     <p>प्रसारण की प्रतीक्षा है...</p>
-    <div id="conn-badge">⏳ सर्वर से जुड़ रहा है...</div>
+    <div id="conn-badge">⏳ जुड़ रहा है...</div>
   </div>
 
   <div id="datetime-box">
@@ -98,9 +96,7 @@
   </div>
 
   <img id="tv-photo" alt="">
-  <div id="yt-wrapper">
-    <div id="yt-player"></div>
-  </div>
+  <iframe id="yt-frame" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
   <video id="live-video" autoplay playsinline></video>
 
   <div id="ticker-bar">
@@ -114,7 +110,7 @@
 <script>
   const videoEl = document.getElementById('live-video');
   const photoEl = document.getElementById('tv-photo');
-  const ytWrapper = document.getElementById('yt-wrapper');
+  const ytFrame = document.getElementById('yt-frame');
   const standbyEl = document.getElementById('standby-screen');
   const marqueeEl = document.getElementById('marquee-text');
   const connBadge = document.getElementById('conn-badge');
@@ -122,9 +118,6 @@
   const startBtn = document.getElementById('start-btn');
 
   let activeIncomingCall = null;
-  let ytPlayer = null;
-  let ytReady = false;
-  let pendingYtId = null;
   let peer = null;
   const CHANNEL_ID = 'aashish-domain-live-tv-01';
 
@@ -132,42 +125,12 @@
     unmuteOverlay.style.display = 'none';
     videoEl.muted = false;
     videoEl.volume = 1.0;
-    if (videoEl.srcObject) {
-      videoEl.play().catch(() => {});
-    }
-    if (ytReady && ytPlayer && typeof ytPlayer.unMute === 'function') {
-      ytPlayer.unMute();
-      ytPlayer.setVolume(100);
-    }
+    if (videoEl.srcObject) videoEl.play().catch(() => {});
   }
 
   unmuteOverlay.addEventListener('click', startTV);
   startBtn.addEventListener('click', startTV);
   window.addEventListener('load', () => startBtn.focus());
-
-  window.onYouTubeIframeAPIReady = function() {
-    ytPlayer = new YT.Player('yt-player', {
-      height: '100%',
-      width: '100%',
-      playerVars: {
-        autoplay: 1,
-        controls: 0,
-        rel: 0,
-        modestbranding: 1,
-        playsinline: 1,
-        iv_load_policy: 3
-      },
-      events: {
-        onReady: () => {
-          ytReady = true;
-          if (pendingYtId) {
-            playYouTubeFast(pendingYtId);
-            pendingYtId = null;
-          }
-        }
-      }
-    });
-  };
 
   function switchMode(newMode) {
     if (newMode !== 'video') {
@@ -186,25 +149,11 @@
     }
 
     if (newMode !== 'youtube') {
-      if (ytReady && ytPlayer && typeof ytPlayer.stopVideo === 'function') {
-        try { ytPlayer.stopVideo(); } catch (e) {}
-      }
-      ytWrapper.style.display = 'none';
+      ytFrame.src = 'about:blank';
+      ytFrame.style.display = 'none';
     }
 
     standbyEl.style.display = (newMode === 'standby') ? 'flex' : 'none';
-  }
-
-  function playYouTubeFast(ytId) {
-    switchMode('youtube');
-    ytWrapper.style.display = 'block';
-    if (ytReady && ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
-      ytPlayer.unMute();
-      ytPlayer.setVolume(100);
-      ytPlayer.loadVideoById(ytId);
-    } else {
-      pendingYtId = ytId;
-    }
   }
 
   function updateClock() {
@@ -214,7 +163,7 @@
     document.getElementById('live-time').innerText = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
     document.getElementById('live-day-date').innerText = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
   }
-  setInterval(updateClock, 5000);
+  setInterval(updateClock, 10000);
   updateClock();
 
   function extractYouTubeID(url) {
@@ -238,46 +187,31 @@
   }
 
   function initPeer() {
-    if (typeof Peer === 'undefined') {
-      connBadge.style.color = '#f87171';
-      connBadge.innerText = '⚠️ PeerJS लोड नहीं हुआ, पेज रीफ़्रेश करें';
-      return;
-    }
-
     if (peer) {
       try { peer.destroy(); } catch (e) {}
     }
 
+    // Empty iceServers on same Wi-Fi connects in 0.1s; Google STUN added as fallback
     peer = new Peer(CHANNEL_ID, {
       config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
-        ],
-        sdpSemantics: 'unified-plan'
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
       }
     });
 
     peer.on('open', () => {
       connBadge.style.color = '#4ade80';
-      connBadge.innerText = '🟢 अंशी TV ऑनलाइन है (Ready)';
+      connBadge.innerText = '🟢 अंशी TV ऑनलाइन है';
     });
 
     peer.on('error', (err) => {
-      if (err.type === 'unavailable-id') {
-        connBadge.style.color = '#f87171';
-        connBadge.innerText = '⚠️ किसी दूसरे टैब में TV खुला है! पहले उसे बंद करें';
-        setTimeout(initPeer, 3000);
-      } else {
-        connBadge.style.color = '#facc15';
-        connBadge.innerText = '🟡 Reconnecting...';
-        setTimeout(initPeer, 3000);
-      }
+      connBadge.style.color = '#f87171';
+      connBadge.innerText = err.type === 'unavailable-id'
+        ? '⚠️ दूसरे टैब में TV खुला है, उसे बंद करें'
+        : '🟡 Reconnecting...';
+      setTimeout(initPeer, 1500);
     });
 
     peer.on('disconnected', () => {
-      connBadge.style.color = '#facc15';
-      connBadge.innerText = '🟡 Reconnecting...';
       if (peer && !peer.destroyed) peer.reconnect();
     });
 
@@ -287,13 +221,19 @@
 
         if (data.youtubeUrl) {
           const ytId = extractYouTubeID(data.youtubeUrl);
-          if (ytId) playYouTubeFast(ytId);
+          if (ytId) {
+            switchMode('youtube');
+            ytFrame.style.display = 'block';
+            ytFrame.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+          }
         }
 
         if (data.photo) {
           switchMode('photo');
+          photoEl.onload = () => {
+            photoEl.style.display = 'block';
+          };
           photoEl.src = data.photo;
-          photoEl.style.display = 'block';
         }
 
         if (data.stopAll) {
@@ -334,6 +274,5 @@
 
   initPeer();
 </script>
-<script src="https://www.youtube.com/iframe_api" async></script>
 </body>
 </html>
