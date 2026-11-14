@@ -3,31 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>अंशी TV</title>
   <link rel="icon" href="data:,">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #000; color: #fff; font-family: Arial, sans-serif; overflow: hidden; height: 100vh; width: 100vw; }
-    #player-container { position: relative; width: 100%; height: 100%; }
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    body {
+      background: #000; color: #fff; font-family: Arial, sans-serif;
+      overflow: hidden; height: 100vh; width: 100vw; cursor: none;
+    }
+    #player-container { position: relative; width: 100%; height: 100%; pointer-events: none; }
     
     video, #tv-photo, #yt-container {
-      width: 100%; height: 100%; position: absolute; inset: 0; background: #000; border: none;
+      width: 100%; height: 100%; position: absolute; inset: 0; background: #000; border: none; pointer-events: none;
     }
-    video { object-fit: cover; display: none; z-index: 5; }
+    video { object-fit: contain; display: none; z-index: 5; }
     #tv-photo { object-fit: contain; display: none; z-index: 6; }
     #yt-container { display: none; z-index: 7; }
-    #yt-container iframe { width: 100%; height: 100%; border: none; }
+    #yt-container iframe { width: 100%; height: 100%; border: none; pointer-events: none; }
 
-    #unmute-overlay {
-      position: absolute; inset: 0; background: rgba(0,0,0,0.92);
-      display: flex; align-items: center; justify-content: center; z-index: 50; cursor: pointer;
-    }
-    #unmute-overlay button {
-      padding: 18px 36px; font-size: 20px; font-weight: bold;
-      background: #e60000; color: #fff; border: 2px solid #ffcc00; border-radius: 10px; cursor: pointer;
+    #tv-input-shield {
+      position: fixed; inset: 0; z-index: 9999; background: transparent;
+      pointer-events: auto; cursor: none;
     }
 
     #standby-screen {
@@ -75,11 +77,9 @@
 </head>
 <body>
 
-<div id="player-container">
-  <div id="unmute-overlay">
-    <button id="start-btn">📺 अंशी TV चालू करें (OK दबाएं)</button>
-  </div>
+<div id="tv-input-shield"></div>
 
+<div id="player-container">
   <div id="standby-screen">
     <h3>📡 अंशी TV LIVE</h3>
     <p>प्रसारण की प्रतीक्षा है...</p>
@@ -111,8 +111,16 @@
 
 <script>
   // apni Supabase Details yahan dalen:
-  const SUPABASE_URL = 'https://mnscrpceekdbikgugaif.supabase.co';
+ const SUPABASE_URL = 'https://mnscrpceekdbikgugaif.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_b-oIZWE82mCJZWHZrwKGhQ_MwBdRAlG';
+
+  ['keydown', 'keyup', 'keypress', 'click', 'dblclick', 'mousedown', 'mouseup', 'contextmenu', 'touchstart'].forEach(evt => {
+    window.addEventListener(evt, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }, { capture: true, passive: false });
+  });
 
   const videoEl = document.getElementById('live-video');
   const photoEl = document.getElementById('tv-photo');
@@ -120,30 +128,25 @@
   const standbyEl = document.getElementById('standby-screen');
   const marqueeEl = document.getElementById('marquee-text');
   const connBadge = document.getElementById('conn-badge');
-  const unmuteOverlay = document.getElementById('unmute-overlay');
-  const startBtn = document.getElementById('start-btn');
 
   let activeIncomingCall = null;
   let myPeerId = null;
-
-  function startTV() {
-    unmuteOverlay.style.display = 'none';
-    videoEl.muted = false;
-    videoEl.volume = 1.0;
-    if (videoEl.srcObject) videoEl.play().catch(() => {});
-  }
-
-  unmuteOverlay.addEventListener('click', startTV);
-  startBtn.addEventListener('click', startTV);
-  window.addEventListener('load', () => startBtn.focus());
+  let currentMode = 'standby';
+  let activeYtUrl = null;
+  let activePhotoHash = null;
+  let activeStreamSession = -1;
+  let lastMarquee = '';
 
   function switchMode(newMode) {
+    currentMode = newMode;
+
     if (newMode !== 'video') {
       videoEl.pause();
       videoEl.srcObject = null;
       videoEl.removeAttribute('src');
       videoEl.load();
       videoEl.style.display = 'none';
+      activeStreamSession = -1;
       if (activeIncomingCall) {
         const oldCall = activeIncomingCall;
         activeIncomingCall = null;
@@ -154,11 +157,13 @@
     if (newMode !== 'photo') {
       photoEl.style.display = 'none';
       photoEl.removeAttribute('src');
+      activePhotoHash = null;
     }
 
     if (newMode !== 'youtube') {
       ytContainer.innerHTML = '';
       ytContainer.style.display = 'none';
+      activeYtUrl = null;
     }
 
     standbyEl.style.display = (newMode === 'standby') ? 'flex' : 'none';
@@ -200,7 +205,11 @@
 
   peer.on('open', (id) => {
     myPeerId = id;
-    announcePresence();
+    announceOnline();
+  });
+
+  peer.on('disconnected', () => {
+    if (peer && !peer.destroyed) peer.reconnect();
   });
 
   peer.on('call', (call) => {
@@ -218,6 +227,8 @@
       if (activeIncomingCall !== call) return;
       videoEl.style.display = 'block';
       videoEl.srcObject = remoteStream;
+      videoEl.muted = false;
+      videoEl.volume = 1.0;
       videoEl.play().catch(() => {
         videoEl.muted = true;
         videoEl.play();
@@ -232,12 +243,22 @@
     });
   });
 
+  // Direct P2P Pull from Controller if live stream is active
+  function pullLiveStreamDirectly(controllerPeerId, sessionId) {
+    if (!controllerPeerId || !myPeerId || activeStreamSession === sessionId) return;
+    activeStreamSession = sessionId;
+    const conn = peer.connect(controllerPeerId);
+    conn.on('open', () => {
+      conn.send({ requestStream: true });
+    });
+  }
+
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const channel = sb.channel('anshi-tv-live-room', {
     config: { broadcast: { self: false } }
   });
 
-  function announcePresence() {
+  function announceOnline() {
     if (myPeerId) {
       channel.send({
         type: 'broadcast',
@@ -249,37 +270,69 @@
 
   channel
     .on('broadcast', { event: 'tv-command' }, ({ payload }) => {
-      if (payload.marquee) marqueeEl.innerText = payload.marquee;
-
-      if (payload.youtubeUrl) {
-        const ytId = extractYouTubeID(payload.youtubeUrl);
-        if (ytId) {
-          switchMode('youtube');
-          ytContainer.style.display = 'block';
-          ytContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media; fullscreen"></iframe>`;
-        }
-      }
-
-      if (payload.photo) {
-        switchMode('photo');
-        photoEl.onload = () => { photoEl.style.display = 'block'; };
-        photoEl.src = payload.photo;
-      }
-
-      if (payload.stopAll) {
-        switchMode('standby');
+      if (payload.forceRefresh) {
+        window.location.reload();
       }
     })
-    .on('broadcast', { event: 'who-is-online' }, () => {
-      announcePresence();
+    .on('broadcast', { event: 'live-pulse' }, ({ payload }) => {
+      if (!payload) return;
+
+      if (payload.marquee && payload.marquee !== lastMarquee) {
+        lastMarquee = payload.marquee;
+        marqueeEl.innerText = payload.marquee;
+      }
+
+      if (payload.mode === 'standby') {
+        if (currentMode !== 'standby') switchMode('standby');
+        return;
+      }
+
+      if (payload.mode === 'youtube' && payload.youtubeUrl) {
+        if (currentMode !== 'youtube' || activeYtUrl !== payload.youtubeUrl) {
+          const ytId = extractYouTubeID(payload.youtubeUrl);
+          if (ytId) {
+            switchMode('youtube');
+            activeYtUrl = payload.youtubeUrl;
+            ytContainer.style.display = 'block';
+            ytContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${ytId}?autoplay=1&start=${payload.startSeconds || 0}&controls=0&disablekb=1&rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media"></iframe>`;
+          }
+        }
+        return;
+      }
+
+      if (payload.mode === 'photo' && payload.photo) {
+        const hash = payload.photo.slice(-40);
+        if (currentMode !== 'photo' || activePhotoHash !== hash) {
+          switchMode('photo');
+          activePhotoHash = hash;
+          photoEl.onload = () => { photoEl.style.display = 'block'; };
+          photoEl.src = payload.photo;
+        }
+        return;
+      }
+
+      if (payload.mode === 'stream' && payload.controllerPeerId) {
+        if (currentMode !== 'video' || activeStreamSession !== payload.streamSessionId) {
+          pullLiveStreamDirectly(payload.controllerPeerId, payload.streamSessionId);
+        }
+      }
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         connBadge.style.color = '#4ade80';
         connBadge.innerText = '🟢 अंशी TV ऑनलाइन है';
-        announcePresence();
+        announceOnline();
       }
     });
+
+  setInterval(() => {
+    announceOnline();
+    if (peer && peer.disconnected && !peer.destroyed) {
+      peer.reconnect();
+    }
+  }, 10000);
+
+  window.addEventListener('online', () => window.location.reload());
 </script>
 </body>
 </html>
