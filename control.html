@@ -3,10 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>अंशी TV Live Broadcaster</title>
+  <title>अंशी TV Controller</title>
   <link rel="icon" href="data:,">
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -51,16 +49,16 @@
 <body>
 
   <div class="header-row">
-    <h2>📡 अंशी TV ब्रॉडकास्टर</h2>
-    <div id="tv-state">🟡 Connecting...</div>
+    <h2>📡 अंशी TV रिमोट</h2>
+    <div id="tv-state">🟡 Scanning TVs...</div>
   </div>
   <div id="status"></div>
 
   <div class="card">
-    <div class="card-title">1. लाइव स्क्रीन कास्ट (Direct Live + Audio)</div>
+    <div class="card-title">1. लाइव स्क्रीन कास्ट + कैमरा</div>
     <button class="btn-cast" onclick="startScreenCast()">🖥️ Cast Screen + Audio (Direct Live)</button>
     <div class="row-btns">
-      <button class="btn-live" onclick="startCamera()">🔴 Live Camera</button>
+      <button class="btn-live" onclick="startCamera()">🔴 Go Live (Camera)</button>
       <button class="btn-stop" onclick="stopEverything()">⏹ Stop All TVs</button>
     </div>
     <button class="btn-switch" onclick="switchCamera()">🔄 कैमरा बदलें (Front/Back)</button>
@@ -69,10 +67,9 @@
   </div>
 
   <div class="card">
-    <div class="card-title">2. गैलरी वीडियो लाइव स्ट्रीम</div>
-    <input type="file" id="gallery-video-input" accept="video/*">
-    <button class="btn-video" onclick="streamGalleryVideo()">🎬 Stream Video Live</button>
-    <video id="gallery-video-player" controls playsinline></video>
+    <div class="card-title">2. YouTube चलाएं</div>
+    <input type="text" id="yt-url" placeholder="YouTube लिंक पेस्ट करें...">
+    <button class="btn-yt" onclick="playYouTubeOnTV()">▶ Play YouTube</button>
   </div>
 
   <div class="card">
@@ -82,9 +79,10 @@
   </div>
 
   <div class="card">
-    <div class="card-title">4. Direct YouTube Link</div>
-    <input type="text" id="yt-url" placeholder="YouTube लिंक पेस्ट करें...">
-    <button class="btn-yt" onclick="playYouTubeOnTV()">▶ Play YouTube</button>
+    <div class="card-title">4. गैलरी वीडियो चलाएं</div>
+    <input type="file" id="gallery-video-input" accept="video/*">
+    <button class="btn-video" onclick="streamGalleryVideo()">🎬 Play Video</button>
+    <video id="gallery-video-player" controls playsinline></video>
   </div>
 
   <div class="card">
@@ -94,10 +92,6 @@
   </div>
 
 <script>
-  // apni Supabase Details yahan dalen:
- const SUPABASE_URL = 'https://mnscrpceekdbikgugaif.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_b-oIZWE82mCJZWHZrwKGhQ_MwBdRAlG';
-
   function forceH264(sdp) {
     const lines = sdp.split('\r\n');
     const mLineIndex = lines.findIndex(l => l.startsWith('m=video'));
@@ -124,18 +118,21 @@
     });
   }
 
+  const MAX_SLOTS = 10;
+  const peer = new Peer({
+    config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+  });
+
   const statusEl = document.getElementById('status');
   const tvStateEl = document.getElementById('tv-state');
   const previewEl = document.getElementById('live-preview');
-  const onlineTVPeers = new Set();
-  const activePeerCalls = new Map();
+  const activeConnections = {};
+  let activeCalls = [];
   let currentStream = null;
-  let controllerPeerId = null;
   let useBackCamera = true;
-  let streamSessionId = 0;
 
   const liveState = {
-    mode: 'standby', // 'standby' | 'stream' | 'photo' | 'youtube'
+    mode: 'standby',
     youtubeUrl: null,
     ytStartedAt: 0,
     photoData: null,
@@ -147,118 +144,90 @@
     statusEl.innerText = msg;
   }
 
-  function updateTVCount() {
-    if (onlineTVPeers.size > 0) {
+  function updateTVCountBadge() {
+    const count = Object.values(activeConnections).filter(c => c && c.open).length;
+    if (count > 0) {
       tvStateEl.style.color = '#4ade80';
-      tvStateEl.innerText = `🟢 ${onlineTVPeers.size} TV Live`;
+      tvStateEl.innerText = `🟢 ${count} TV Connected`;
     } else {
-      tvStateEl.style.color = '#4ade80';
-      tvStateEl.innerText = '🟢 Live Ready';
+      tvStateEl.style.color = '#f87171';
+      tvStateEl.innerText = '🔴 No TV Online';
     }
   }
 
-  const peer = new Peer({
-    config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
-  });
-
-  peer.on('open', (id) => {
-    controllerPeerId = id;
-    pushLivePulse();
-  });
-
-  // If any TV directly requests the live stream via PeerJS DataConnection, call it immediately
-  peer.on('connection', (conn) => {
-    conn.on('data', (data) => {
-      if (data && data.requestStream && currentStream && liveState.mode === 'stream') {
-        onlineTVPeers.add(conn.peer);
-        updateTVCount();
-        sendStreamToSingleTV(conn.peer);
-      }
-    });
-  });
-
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  const channel = sb.channel('anshi-tv-live-room', {
-    config: { broadcast: { self: false } }
-  });
-
-  function sendStreamToSingleTV(targetPeerId) {
-    if (!currentStream || !targetPeerId) return;
-    if (activePeerCalls.has(targetPeerId)) {
-      try { activePeerCalls.get(targetPeerId).close(); } catch (e) {}
+  function syncNewTV(slotId, conn) {
+    conn.send({ marquee: liveState.marquee });
+    if (liveState.mode === 'youtube' && liveState.youtubeUrl) {
+      const elapsed = Math.max(0, Math.floor((Date.now() - liveState.ytStartedAt) / 1000));
+      conn.send({ youtubeUrl: liveState.youtubeUrl, startSeconds: elapsed });
+    } else if (liveState.mode === 'photo' && liveState.photoData) {
+      conn.send({ photo: liveState.photoData });
+    } else if (liveState.mode === 'stream' && currentStream) {
+      const call = peer.call(slotId, currentStream, { sdpTransform: forceH264 });
+      activeCalls.push(call);
+      setTimeout(() => capVideoBitrate(call, 650), 600);
     }
-    const call = peer.call(targetPeerId, currentStream, { sdpTransform: forceH264 });
-    activePeerCalls.set(targetPeerId, call);
-    setTimeout(() => capVideoBitrate(call, 650), 500);
   }
 
-  // Continuous Direct Push Pulse (Every 1.5s) — no waiting for TV handshake
-  function pushLivePulse() {
-    if (!channel) return;
-    const elapsedSec = liveState.ytStartedAt
-      ? Math.max(0, Math.floor((Date.now() - liveState.ytStartedAt) / 1000))
-      : 0;
+  function scanAndConnectTVs() {
+    if (!peer || peer.disconnected || peer.destroyed) return;
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+      const slotId = `anshi-tv-slot-${i}`;
+      if (activeConnections[slotId] && activeConnections[slotId].open) continue;
 
-    channel.send({
-      type: 'broadcast',
-      event: 'live-pulse',
-      payload: {
-        controllerPeerId,
-        streamSessionId,
-        mode: liveState.mode,
-        youtubeUrl: liveState.youtubeUrl,
-        startSeconds: elapsedSec,
-        photo: liveState.photoData,
-        marquee: liveState.marquee
-      }
-    });
+      const conn = peer.connect(slotId, { reliable: true });
+      conn.on('open', () => {
+        activeConnections[slotId] = conn;
+        updateTVCountBadge();
+        syncNewTV(slotId, conn);
+      });
+      conn.on('close', () => {
+        delete activeConnections[slotId];
+        updateTVCountBadge();
+      });
+      conn.on('error', () => {
+        delete activeConnections[slotId];
+        updateTVCountBadge();
+      });
+    }
   }
 
-  setInterval(pushLivePulse, 1500);
+  peer.on('open', scanAndConnectTVs);
+  peer.on('error', () => {});
+  setInterval(scanAndConnectTVs, 3000);
 
-  channel
-    .on('broadcast', { event: 'tv-online' }, ({ payload }) => {
-      if (payload && payload.peerId) {
-        onlineTVPeers.add(payload.peerId);
-        updateTVCount();
-        if (liveState.mode === 'stream' && currentStream) {
-          sendStreamToSingleTV(payload.peerId);
-        }
-      }
-    })
-    .subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        updateTVCount();
-        pushLivePulse();
-      }
+  function broadcastData(payload, successMsg) {
+    const openConns = Object.values(activeConnections).filter(c => c && c.open);
+    if (openConns.length === 0) {
+      scanAndConnectTVs();
+      return setStatus('⚠️ कोई भी TV स्क्रीन खुली नहीं है!', true);
+    }
+    openConns.forEach(conn => conn.send(payload));
+    if (successMsg) setStatus(`${successMsg} (${openConns.length} TV)`);
+  }
+
+  function broadcastStream(stream) {
+    const openSlots = Object.keys(activeConnections).filter(id => activeConnections[id] && activeConnections[id].open);
+    if (openSlots.length === 0) {
+      return setStatus('⚠️ कोई भी TV स्क्रीन खुली नहीं है!', true);
+    }
+    openSlots.forEach(slotId => {
+      const call = peer.call(slotId, stream, { sdpTransform: forceH264 });
+      activeCalls.push(call);
+      setTimeout(() => capVideoBitrate(call, 650), 600);
     });
-
-  function broadcastStreamToAll(stream) {
-    streamSessionId++;
-    pushLivePulse(); // Immediately notify all open TVs to pull/receive stream
-    onlineTVPeers.forEach(peerId => sendStreamToSingleTV(peerId));
   }
 
   async function startScreenCast() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-      return setStatus('⚠️ मोबाइल ब्राउज़र Screen Cast सपोर्ट नहीं करता—Laptop/PC Chrome से चलाएं या नीचे से Camera/Video चलाएं।', true);
+      return setStatus('⚠️ मोबाइल ब्राउज़र Screen Cast सपोर्ट नहीं करता—Laptop/PC से चलाएं।', true);
     }
-
     try {
       stopLocalMedia();
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: 1280, max: 1280 },
-          height: { ideal: 720, max: 720 },
-          frameRate: { ideal: 25, max: 30 }
-        },
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false
-        }
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 25 } },
+        audio: true
       });
-
       currentStream = screenStream;
       previewEl.srcObject = screenStream;
       previewEl.style.display = 'block';
@@ -267,47 +236,55 @@
       liveState.youtubeUrl = null;
       liveState.photoData = null;
 
-      broadcastStreamToAll(screenStream);
-      setStatus('🖥️ Live Screen + Audio सीधे TV पर चल रहा है!');
-
-      screenStream.getVideoTracks()[0].onended = () => {
-        stopEverything();
-      };
+      broadcastStream(screenStream);
+      setStatus('🖥️ Live Screen + Audio चल रहा है!');
+      screenStream.getVideoTracks()[0].onended = stopEverything;
     } catch (err) {
       setStatus('Screen Cast Cancelled: ' + err.message, true);
     }
   }
 
-  async function startCamera() {
-    try {
-      stopLocalMedia();
-      currentStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: useBackCamera ? 'environment' : 'user',
-          width: { ideal: 640 },
-          height: { ideal: 360 },
-          frameRate: { ideal: 24, max: 24 }
-        },
-        audio: true
-      });
-
-      previewEl.srcObject = currentStream;
-      previewEl.style.display = 'block';
-
-      liveState.mode = 'stream';
-      liveState.youtubeUrl = null;
-      liveState.photoData = null;
-
-      broadcastStreamToAll(currentStream);
-      setStatus('🔴 लाइव कैमरा सीधे TV पर चालू है!');
-    } catch (err) {
-      setStatus('Camera/Mic Error: ' + err.message, true);
-    }
+  function playYouTubeOnTV() {
+    const url = document.getElementById('yt-url').value.trim();
+    if (!url) return setStatus('YouTube लिंक डालें!', true);
+    stopLocalMedia();
+    liveState.mode = 'youtube';
+    liveState.youtubeUrl = url;
+    liveState.ytStartedAt = Date.now();
+    liveState.photoData = null;
+    broadcastData({ youtubeUrl: url, startSeconds: 0 }, '▶ YouTube चल रहा है!');
   }
 
-  function switchCamera() {
-    useBackCamera = !useBackCamera;
-    if (currentStream) startCamera();
+  function compressImage(file, callback) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, 540 / img.width);
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        callback(canvas.toDataURL('image/jpeg', 0.45));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function sendPhotoToTV() {
+    const file = document.getElementById('photo-input').files[0];
+    if (!file) return setStatus('पहले फ़ोटो चुनें!', true);
+    stopLocalMedia();
+    compressImage(file, (dataUrl) => {
+      liveState.mode = 'photo';
+      liveState.photoData = dataUrl;
+      liveState.youtubeUrl = null;
+      broadcastData({ photo: dataUrl }, '🖼️ फ़ोटो दिख रही है!');
+    });
   }
 
   function streamGalleryVideo() {
@@ -323,69 +300,48 @@
       vidPlayer.play();
       const stream = vidPlayer.captureStream ? vidPlayer.captureStream(24) : vidPlayer.mozCaptureStream(24);
       currentStream = stream;
-
       liveState.mode = 'stream';
       liveState.youtubeUrl = null;
       liveState.photoData = null;
-
-      broadcastStreamToAll(stream);
-      setStatus('🎬 वीडियो सीधे TV पर लाइव चल रहा है!');
+      broadcastStream(stream);
+      setStatus('🎬 वीडियो चल रहा है!');
     };
   }
 
-  function playYouTubeOnTV() {
-    const url = document.getElementById('yt-url').value.trim();
-    if (!url) return setStatus('YouTube लिंक डालें!', true);
-    stopLocalMedia();
-
-    liveState.mode = 'youtube';
-    liveState.youtubeUrl = url;
-    liveState.ytStartedAt = Date.now();
-    liveState.photoData = null;
-
-    pushLivePulse();
-    setStatus('▶ YouTube सीधे TV पर चल रहा है!');
-  }
-
-  function compressImage(file, callback) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const scale = Math.min(1, 720 / img.width);
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        callback(canvas.toDataURL('image/jpeg', 0.65));
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function sendPhotoToTV() {
-    const file = document.getElementById('photo-input').files[0];
-    if (!file) return setStatus('पहले फ़ोटो चुनें!', true);
-    stopLocalMedia();
-    compressImage(file, (dataUrl) => {
-      liveState.mode = 'photo';
-      liveState.photoData = dataUrl;
+  async function startCamera() {
+    try {
+      stopLocalMedia();
+      currentStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: useBackCamera ? 'environment' : 'user',
+          width: { ideal: 640 },
+          height: { ideal: 360 },
+          frameRate: { ideal: 24, max: 24 }
+        },
+        audio: true
+      });
+      previewEl.srcObject = currentStream;
+      previewEl.style.display = 'block';
+      liveState.mode = 'stream';
       liveState.youtubeUrl = null;
-      pushLivePulse();
-      setStatus('🖼️ फ़ोटो सीधे TV पर दिख रही है!');
-    });
+      liveState.photoData = null;
+      broadcastStream(currentStream);
+      setStatus('🔴 लाइव कैमरा चालू है!');
+    } catch (err) {
+      setStatus('Camera/Mic Error: ' + err.message, true);
+    }
+  }
+
+  function switchCamera() {
+    useBackCamera = !useBackCamera;
+    if (currentStream) startCamera();
   }
 
   function updateMarquee() {
     const marquee = document.getElementById('marquee-input').value.trim();
     if (!marquee) return setStatus('टेक्स्ट लिखें!', true);
     liveState.marquee = marquee;
-    pushLivePulse();
-    setStatus('✅ न्यूज़ अपडेट हो गई!');
+    broadcastData({ marquee: marquee }, '✅ न्यूज़ अपडेट हो गई!');
   }
 
   function stopLocalMedia() {
@@ -393,14 +349,12 @@
       currentStream.getTracks().forEach(t => t.stop());
       currentStream = null;
     }
-    activePeerCalls.forEach(call => {
+    activeCalls.forEach(call => {
       try { call.close(); } catch (e) {}
     });
-    activePeerCalls.clear();
-
+    activeCalls = [];
     previewEl.srcObject = null;
     previewEl.style.display = 'none';
-
     const galVid = document.getElementById('gallery-video-player');
     galVid.pause();
     galVid.removeAttribute('src');
@@ -412,20 +366,12 @@
     liveState.mode = 'standby';
     liveState.youtubeUrl = null;
     liveState.photoData = null;
-    pushLivePulse();
+    broadcastData({ stopAll: true }, '⏹ सभी TV बंद कर दिए गए।');
     stopLocalMedia();
-    setStatus('⏹ सभी TV तुरंत बंद कर दिए गए।');
   }
 
   function refreshAllTVs() {
-    onlineTVPeers.clear();
-    updateTVCount();
-    channel.send({
-      type: 'broadcast',
-      event: 'tv-command',
-      payload: { forceRefresh: true }
-    });
-    setStatus('🔄 सभी TV रिफ़्रेश हो रहे हैं...');
+    broadcastData({ forceRefresh: true }, '🔄 सभी TV रिफ़्रेश हो रहे हैं...');
   }
 </script>
 </body>
