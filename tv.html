@@ -4,8 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>अंशी TV</title>
-  <!-- Preconnect to YouTube & PeerJS servers for zero DNS/SSL delay -->
-  <link rel="preconnect" href="https://www.youtube-nocookie.com">
   <link rel="preconnect" href="https://www.youtube.com">
   <link rel="preconnect" href="https://i.ytimg.com">
   <link rel="preconnect" href="https://0.peerjs.com">
@@ -113,7 +111,6 @@
   </div>
 </div>
 
-<!-- Load Official YouTube IFrame API asynchronously -->
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
   const videoEl = document.getElementById('live-video');
@@ -127,13 +124,12 @@
   let ytPlayer = null;
   let ytReady = false;
   let pendingYtId = null;
+  let currentMode = 'standby'; // 'standby' | 'video' | 'photo' | 'youtube'
 
-  // Initialize pre-warmed YouTube player once on page load
   function onYouTubeIframeAPIReady() {
     ytPlayer = new YT.Player('yt-player', {
       height: '100%',
       width: '100%',
-      host: 'https://www.youtube-nocookie.com',
       playerVars: {
         autoplay: 1,
         controls: 0,
@@ -154,13 +150,45 @@
     });
   }
 
+  function switchMode(newMode) {
+    currentMode = newMode;
+
+    // 1. Video layer cleanup (without killing PeerJS listener)
+    if (newMode !== 'video') {
+      videoEl.pause();
+      videoEl.srcObject = null;
+      videoEl.style.display = 'none';
+      if (activeIncomingCall) {
+        const oldCall = activeIncomingCall;
+        activeIncomingCall = null;
+        try { oldCall.close(); } catch (e) {}
+      }
+    }
+
+    // 2. Photo layer cleanup
+    if (newMode !== 'photo') {
+      photoEl.style.display = 'none';
+    }
+
+    // 3. YouTube layer cleanup
+    if (newMode !== 'youtube') {
+      if (ytReady && ytPlayer && typeof ytPlayer.stopVideo === 'function') {
+        try { ytPlayer.stopVideo(); } catch (e) {}
+      }
+      ytWrapper.style.display = 'none';
+    }
+
+    // 4. Standby screen toggle
+    standbyEl.style.display = (newMode === 'standby') ? 'flex' : 'none';
+  }
+
   function playYouTubeFast(ytId) {
-    hardStopAll(false);
+    switchMode('youtube');
     ytWrapper.style.display = 'block';
     if (ytReady && ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
       ytPlayer.unMute();
       ytPlayer.setVolume(100);
-      ytPlayer.loadVideoById({ videoId: ytId, suggestedQuality: 'hd720' });
+      ytPlayer.loadVideoById(ytId);
     } else {
       pendingYtId = ytId;
     }
@@ -209,32 +237,6 @@
     return lines.join('\r\n');
   }
 
-  function hardStopAll(showStandby = false) {
-    if (activeIncomingCall) {
-      try { activeIncomingCall.close(); } catch (e) {}
-      activeIncomingCall = null;
-    }
-    videoEl.pause();
-    if (videoEl.srcObject) {
-      videoEl.srcObject.getTracks().forEach(t => t.stop());
-      videoEl.srcObject = null;
-    }
-    videoEl.removeAttribute('src');
-    videoEl.load();
-    videoEl.style.display = 'none';
-
-    photoEl.style.display = 'none';
-    photoEl.removeAttribute('src');
-
-    // Stop YouTube playback without destroying pre-warmed player instance
-    if (ytReady && ytPlayer && typeof ytPlayer.stopVideo === 'function') {
-      try { ytPlayer.stopVideo(); } catch (e) {}
-    }
-    ytWrapper.style.display = 'none';
-
-    standbyEl.style.display = showStandby ? 'flex' : 'none';
-  }
-
   const CHANNEL_ID = 'aashish-domain-live-tv-01';
   const peer = new Peer(CHANNEL_ID, {
     config: {
@@ -265,23 +267,31 @@
       }
 
       if (data.photo) {
-        hardStopAll(false);
+        switchMode('photo');
         photoEl.src = data.photo;
         photoEl.style.display = 'block';
       }
 
       if (data.stopAll) {
-        hardStopAll(true);
+        switchMode('standby');
       }
     });
   });
 
   peer.on('call', (call) => {
-    hardStopAll(false);
+    // Close only the previous call if it exists, never touch the new incoming call
+    if (activeIncomingCall && activeIncomingCall !== call) {
+      const prev = activeIncomingCall;
+      activeIncomingCall = null;
+      try { prev.close(); } catch (e) {}
+    }
+
     activeIncomingCall = call;
+    switchMode('video');
     call.answer(null, { sdpTransform: forceH264 });
 
     call.on('stream', (remoteStream) => {
+      if (activeIncomingCall !== call) return;
       videoEl.style.display = 'block';
       videoEl.srcObject = remoteStream;
       videoEl.play().catch(() => {
@@ -290,8 +300,12 @@
       });
     });
 
+    // Only reset to standby if THIS exact active call closed (ignore old delayed close events)
     call.on('close', () => {
-      hardStopAll(true);
+      if (activeIncomingCall === call) {
+        activeIncomingCall = null;
+        switchMode('standby');
+      }
     });
   });
 </script>
