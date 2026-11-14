@@ -8,23 +8,14 @@
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: Arial, sans-serif;
-      background: #0f0f0f; color: #fff; padding: 14px; max-width: 500px; margin: auto;
-    }
+    body { font-family: Arial, sans-serif; background: #0f0f0f; color: #fff; padding: 14px; max-width: 500px; margin: auto; }
     .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
     h2 { font-size: 19px; color: #ffcc00; }
     #tv-state { font-size: 12px; padding: 4px 10px; border-radius: 20px; background: #222; font-weight: bold; }
-    .card {
-      background: #1a1a1a; padding: 14px; border-radius: 10px;
-      margin-bottom: 12px; border: 1px solid #2a2a2a;
-    }
+    .card { background: #1a1a1a; padding: 14px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #2a2a2a; }
     .card-title { font-size: 12px; color: #aaa; margin-bottom: 8px; font-weight: bold; }
     .row-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    button {
-      width: 100%; padding: 12px 10px; border: none; border-radius: 8px;
-      font-weight: bold; font-size: 14px; cursor: pointer;
-    }
+    button { width: 100%; padding: 12px 10px; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; }
     .btn-live { background: #e60000; color: #fff; }
     .btn-stop { background: #333; color: #fff; }
     .btn-switch { background: #262626; color: #ddd; margin-top: 8px; padding: 10px; font-size: 13px; }
@@ -33,16 +24,10 @@
     .btn-photo { background: #1f6feb; color: #fff; }
     .btn-video { background: #2ea043; color: #fff; }
     .btn-update { background: #ffcc00; color: #000; }
-    
-    input[type="text"], input[type="file"] {
-      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #333;
-      background: #252525; color: #fff; font-size: 14px; margin-bottom: 8px;
-    }
-    video {
-      width: 100%; height: 180px; background: #000; margin-top: 8px;
-      border-radius: 8px; object-fit: cover; display: none;
-    }
+    input[type="text"], input[type="file"] { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #252525; color: #fff; font-size: 14px; margin-bottom: 8px; }
+    video { width: 100%; height: 180px; background: #000; margin-top: 8px; border-radius: 8px; object-fit: cover; display: none; }
     #status { margin-bottom: 10px; font-size: 13px; color: #4ade80; text-align: center; font-weight: bold; min-height: 18px; }
+    .hint { font-size: 11px; color: #777; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -62,6 +47,7 @@
     <button class="btn-switch" onclick="switchCamera()">🔄 कैमरा बदलें (Front/Back)</button>
     <button class="btn-refresh" onclick="refreshAllTVs()">🔄 Refresh All TVs</button>
     <video id="camera-preview" muted autoplay playsinline></video>
+    <div class="hint">नोट: ज़्यादा TV जुड़ने पर क्वालिटी अपने-आप थोड़ी घटती है ताकि delay न आए।</div>
   </div>
 
   <div class="card">
@@ -77,7 +63,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title">4. गैलरी वीडियो चलाएं</div>
+    <div class="card-title">4. गैलरी वीडियो चलाएं (आवाज़ के साथ)</div>
     <input type="file" id="gallery-video-input" accept="video/*">
     <button class="btn-video" onclick="streamGalleryVideo()">🎬 Play Video</button>
     <video id="gallery-video-player" controls playsinline></video>
@@ -96,16 +82,8 @@
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-      {
-        urls: 'turn:openrelay.metered.ca:80',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      },
-      {
-        urls: 'turn:openrelay.metered.ca:443',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      }
+      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
     ]
   };
 
@@ -123,22 +101,38 @@
     return lines.join('\r\n');
   }
 
-  function capVideoBitrate(call, maxKbps = 550) {
+  // Har TV ke liye alag encode hota hai, isliye TV count ke hisaab se bitrate baanto
+  function perTvBitrateKbps() {
+    const n = Math.max(1, callsByTv.size);
+    return Math.max(450, Math.min(1800, Math.round(4000 / n)));
+  }
+
+  function tuneCall(call) {
     if (!call || !call.peerConnection) return;
+    const kbps = perTvBitrateKbps();
     call.peerConnection.getSenders().forEach((sender) => {
-      if (sender.track && sender.track.kind === 'video') {
-        const params = sender.getParameters();
-        if (!params.encodings) params.encodings = [{}];
-        params.encodings[0].maxBitrate = maxKbps * 1000;
-        sender.setParameters(params).catch(() => {});
+      if (!sender.track) return;
+      const params = sender.getParameters();
+      if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+      if (sender.track.kind === 'video') {
+        params.encodings[0].maxBitrate = kbps * 1000;
+        params.encodings[0].maxFramerate = 24;
+        params.degradationPreference = 'maintain-framerate';
+      } else {
+        params.encodings[0].maxBitrate = 128000; // stereo-quality audio
       }
+      sender.setParameters(params).catch(() => {});
     });
+  }
+
+  function retuneAll() {
+    callsByTv.forEach((call) => tuneCall(call));
   }
 
   const statusEl = document.getElementById('status');
   const tvStateEl = document.getElementById('tv-state');
-  const connectedTVs = new Map();
-  let activeCalls = [];
+  const connectedTVs = new Map();   // tvPeerId -> data connection
+  const callsByTv = new Map();      // tvPeerId -> media call
   let currentStream = null;
   let useBackCamera = true;
   let peer = null;
@@ -159,13 +153,9 @@
   function updateTVCountBadge() {
     let openCount = 0;
     connectedTVs.forEach((conn, id) => {
-      if (conn && conn.open) {
-        openCount++;
-      } else {
-        connectedTVs.delete(id);
-      }
+      if (conn && conn.open) openCount++;
+      else connectedTVs.delete(id);
     });
-
     if (openCount > 0) {
       tvStateEl.style.color = '#4ade80';
       tvStateEl.innerText = `🟢 ${openCount} TV Connected`;
@@ -173,6 +163,23 @@
       tvStateEl.style.color = '#facc15';
       tvStateEl.innerText = '🟡 Waiting for TV...';
     }
+  }
+
+  function closeCallFor(tvPeerId) {
+    const old = callsByTv.get(tvPeerId);
+    if (old) { try { old.close(); } catch (e) {} }
+    callsByTv.delete(tvPeerId);
+  }
+
+  function callTV(tvPeerId, stream) {
+    closeCallFor(tvPeerId);
+    const call = peer.call(tvPeerId, stream, { sdpTransform: forceH264 });
+    if (!call) return;
+    callsByTv.set(tvPeerId, call);
+    call.on('close', () => { if (callsByTv.get(tvPeerId) === call) callsByTv.delete(tvPeerId); });
+    call.on('error', () => { if (callsByTv.get(tvPeerId) === call) callsByTv.delete(tvPeerId); });
+    setTimeout(retuneAll, 700);
+    setTimeout(retuneAll, 2500);
   }
 
   function syncNewTV(tvPeerId, conn) {
@@ -183,9 +190,7 @@
     } else if (liveState.mode === 'photo' && liveState.photoData) {
       conn.send({ photo: liveState.photoData });
     } else if (liveState.mode === 'stream' && currentStream) {
-      const call = peer.call(tvPeerId, currentStream, { sdpTransform: forceH264 });
-      activeCalls.push(call);
-      setTimeout(() => capVideoBitrate(call, 550), 600);
+      callTV(tvPeerId, currentStream);
     }
   }
 
@@ -203,16 +208,14 @@
         updateTVCountBadge();
         syncNewTV(conn.peer, conn);
       });
-
-      conn.on('close', () => {
+      const gone = () => {
         connectedTVs.delete(conn.peer);
+        closeCallFor(conn.peer);
         updateTVCountBadge();
-      });
-
-      conn.on('error', () => {
-        connectedTVs.delete(conn.peer);
-        updateTVCountBadge();
-      });
+        retuneAll();
+      };
+      conn.on('close', gone);
+      conn.on('error', gone);
     });
 
     peer.on('disconnected', () => {
@@ -221,7 +224,9 @@
 
     peer.on('error', (err) => {
       if (err.type === 'unavailable-id') {
-        setStatus('⚠️ दूसरा कंट्रोलर पहले से खुला है! उसे बंद करके रिफ़्रेश करें।', true);
+        setStatus('⚠️ दूसरा कंट्रोलर पहले से खुला है! उसे बंद करके 20 सेकंड बाद रिफ़्रेश करें।', true);
+      } else if (err.type === 'peer-unavailable') {
+        // koi TV beech me gayab ho gaya, ignore
       } else {
         setStatus('Network Error: ' + err.type, true);
       }
@@ -230,14 +235,15 @@
 
   initControllerPeer();
 
+  // Band ho chuki connections saaf karte raho
+  setInterval(updateTVCountBadge, 4000);
+
   function broadcastData(payload, successMsg) {
     updateTVCountBadge();
     if (connectedTVs.size === 0) {
       return setStatus('⚠️ कोई भी TV कनेक्ट नहीं है! पहले TV पर tv.html खोलें।', true);
     }
-    connectedTVs.forEach((conn) => {
-      if (conn && conn.open) conn.send(payload);
-    });
+    connectedTVs.forEach((conn) => { if (conn && conn.open) conn.send(payload); });
     if (successMsg) setStatus(`${successMsg} (${connectedTVs.size} TV)`);
   }
 
@@ -247,11 +253,7 @@
       return setStatus('⚠️ कोई भी TV कनेक्ट नहीं है! पहले TV पर tv.html खोलें।', true);
     }
     connectedTVs.forEach((conn, tvPeerId) => {
-      if (conn && conn.open) {
-        const call = peer.call(tvPeerId, stream, { sdpTransform: forceH264 });
-        activeCalls.push(call);
-        setTimeout(() => capVideoBitrate(call, 550), 600);
-      }
+      if (conn && conn.open) callTV(tvPeerId, stream);
     });
   }
 
@@ -272,14 +274,14 @@
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const scale = Math.min(1, 640 / img.width);
+        const scale = Math.min(1, 1280 / img.width);
         canvas.width = Math.round(img.width * scale);
         canvas.height = Math.round(img.height * scale);
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        callback(canvas.toDataURL('image/jpeg', 0.55));
+        callback(canvas.toDataURL('image/jpeg', 0.7));
       };
       img.src = e.target.result;
     };
@@ -303,35 +305,56 @@
     if (!file) return setStatus('पहले वीडियो चुनें!', true);
     stopLocalMedia();
     const vidPlayer = document.getElementById('gallery-video-player');
+    vidPlayer.muted = false;   // muted hua to captureStream me audio nahi jaata
+    vidPlayer.volume = 1.0;
     vidPlayer.src = URL.createObjectURL(file);
     vidPlayer.style.display = 'block';
     vidPlayer.loop = true;
 
-    vidPlayer.onloadedmetadata = () => {
-      vidPlayer.play();
-      const stream = vidPlayer.captureStream ? vidPlayer.captureStream(24) : vidPlayer.mozCaptureStream(24);
+    vidPlayer.onloadedmetadata = async () => {
+      try { await vidPlayer.play(); }
+      catch (e) { setStatus('वीडियो पर एक बार Play दबाएं', true); return; }
+
+      const capture = vidPlayer.captureStream ? vidPlayer.captureStream.bind(vidPlayer) : vidPlayer.mozCaptureStream.bind(vidPlayer);
+      let stream = capture();
+
+      // audio track kabhi kabhi der se aata hai
+      let tries = 0;
+      while (stream.getAudioTracks().length === 0 && tries < 10) {
+        await new Promise(r => setTimeout(r, 150));
+        stream = capture();
+        tries++;
+      }
+
       currentStream = stream;
       liveState.mode = 'stream';
       liveState.youtubeUrl = null;
       liveState.photoData = null;
       broadcastStream(stream);
-      setStatus('🎬 वीडियो चल रहा है!');
+      setStatus(stream.getAudioTracks().length ? '🎬 वीडियो + आवाज़ चल रही है!' : '🎬 वीडियो चल रहा है (इसमें आवाज़ नहीं मिली)');
     };
   }
 
+  async function getCameraStream() {
+    return navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: useBackCamera ? 'environment' : 'user',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        aspectRatio: { ideal: 1.7777777778 },
+        frameRate: { ideal: 24, max: 24 }
+      },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }
+    });
+  }
+
   async function startCamera() {
+    if (!window.isSecureContext) {
+      return setStatus('⚠️ कैमरा के लिए HTTPS लिंक चाहिए (file:// या http:// नहीं चलेगा)', true);
+    }
     try {
       stopLocalMedia();
-      currentStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: useBackCamera ? 'environment' : 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          aspectRatio: { ideal: 1.7777777778 },
-          frameRate: { ideal: 24, max: 24 }
-        },
-        audio: true
-      });
+      currentStream = await getCameraStream();
       const preview = document.getElementById('camera-preview');
       preview.srcObject = currentStream;
       preview.style.display = 'block';
@@ -345,9 +368,30 @@
     }
   }
 
-  function switchCamera() {
+  // Camera बदलते समय TV पर रुकावट न आए: sirf video track replace karo
+  async function switchCamera() {
     useBackCamera = !useBackCamera;
-    if (currentStream) startCamera();
+    const isCameraLive = currentStream && liveState.mode === 'stream' &&
+      document.getElementById('camera-preview').style.display === 'block';
+    if (!isCameraLive) return;
+    try {
+      const newStream = await getCameraStream();
+      const newVideo = newStream.getVideoTracks()[0];
+      callsByTv.forEach((call) => {
+        if (!call.peerConnection) return;
+        call.peerConnection.getSenders().forEach((s) => {
+          if (s.track && s.track.kind === 'video') s.replaceTrack(newVideo).catch(() => {});
+        });
+      });
+      const oldVideo = currentStream.getVideoTracks()[0];
+      if (oldVideo) { currentStream.removeTrack(oldVideo); oldVideo.stop(); }
+      currentStream.addTrack(newVideo);
+      newStream.getAudioTracks().forEach(t => t.stop()); // purana mic hi chalne do
+      document.getElementById('camera-preview').srcObject = currentStream;
+      setStatus('🔄 कैमरा बदल गया');
+    } catch (err) {
+      setStatus('Camera Error: ' + err.message, true);
+    }
   }
 
   function updateMarquee() {
@@ -362,12 +406,11 @@
       currentStream.getTracks().forEach(t => t.stop());
       currentStream = null;
     }
-    activeCalls.forEach(call => {
-      try { call.close(); } catch (e) {}
-    });
-    activeCalls = [];
+    callsByTv.forEach((call) => { try { call.close(); } catch (e) {} });
+    callsByTv.clear();
     document.getElementById('camera-preview').style.display = 'none';
     const galVid = document.getElementById('gallery-video-player');
+    galVid.onloadedmetadata = null;
     galVid.pause();
     galVid.removeAttribute('src');
     galVid.load();

@@ -9,85 +9,43 @@
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; }
-    html, body {
-      background: #000; color: #fff; font-family: Arial, sans-serif;
-      overflow: hidden; height: 100%; width: 100%;
-    }
-    #player-container { position: fixed; inset: 0; width: 100%; height: 100%; }
-    
-    #live-video {
-      position: fixed; inset: 0; width: 100%; height: 100%;
-      object-fit: cover; background: #000; border: none; display: none; z-index: 5;
-    }
-    #tv-photo {
-      position: fixed; inset: 0; width: 100%; height: 100%;
-      object-fit: contain; background: #000; border: none; display: none; z-index: 6;
-    }
-    #yt-container {
-      position: fixed; inset: 0; width: 100%; height: 100%;
-      background: #000; display: none; z-index: 7; overflow: hidden;
-    }
-    #yt-container iframe {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      border: none;
-    }
+    html, body { background: #000; color: #fff; font-family: Arial, sans-serif; overflow: hidden; height: 100%; width: 100%; }
+    #player-container { position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; }
+
+    #live-video { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; background: #000; border: none; display: none; z-index: 5; }
+    #tv-photo { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #000; border: none; display: none; z-index: 6; }
+    #yt-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: none; z-index: 7; overflow: hidden; }
+    #yt-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
 
     #fs-unlock-overlay {
-      position: fixed; inset: 0; z-index: 10000;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10000;
       background: rgba(0, 0, 0, 0.88);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       cursor: pointer; text-align: center; padding: 20px;
     }
-    #fs-unlock-btn {
-      padding: 18px 34px; font-size: 20px; font-weight: bold;
-      background: #e60000; color: #fff; border: 3px solid #ffcc00;
-      border-radius: 12px; cursor: pointer;
-    }
+    #fs-unlock-btn { padding: 18px 34px; font-size: 20px; font-weight: bold; background: #e60000; color: #fff; border: 3px solid #ffcc00; border-radius: 12px; cursor: pointer; }
 
-    #standby-screen {
-      position: fixed; inset: 0;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      color: #aaa; z-index: 2; text-align: center; padding: 20px;
-    }
+    #standby-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #aaa; z-index: 2; text-align: center; padding: 20px; }
     #standby-screen h3 { color: #ffcc00; font-size: 32px; margin-bottom: 8px; }
     #conn-badge { font-size: 14px; color: #4ade80; margin-top: 8px; font-weight: bold; }
 
-    #datetime-box {
-      position: fixed; top: 18px; left: 22px; z-index: 20;
-      background: rgba(0, 0, 0, 0.85); border-left: 4px solid #ffcc00; padding: 6px 12px;
-      pointer-events: none;
-    }
+    #datetime-box { position: fixed; top: 18px; left: 22px; z-index: 20; background: rgba(0, 0, 0, 0.85); border-left: 4px solid #ffcc00; padding: 6px 12px; pointer-events: none; }
     #live-time { font-size: 18px; font-weight: bold; }
     #live-day-date { font-size: 12px; color: #ffcc00; margin-top: 2px; }
 
-    #channel-logo {
-      position: fixed; top: 18px; right: 22px; z-index: 20;
-      display: flex; align-items: center; gap: 8px;
-      background: rgba(0, 0, 0, 0.85); padding: 6px 14px; border: 1.5px solid #ffcc00; border-radius: 6px;
-      pointer-events: none;
-    }
+    #channel-logo { position: fixed; top: 18px; right: 22px; z-index: 20; display: flex; align-items: center; background: rgba(0, 0, 0, 0.85); padding: 6px 14px; border: 1.5px solid #ffcc00; border-radius: 6px; pointer-events: none; }
+    #channel-logo span { margin-left: 8px; }
+    #channel-logo span:first-child { margin-left: 0; }
     .anshi-hindi { font-size: 22px; font-weight: 900; color: #ffcc00; }
     .tv-box { background: #e60000; color: #fff; font-weight: 900; font-size: 16px; padding: 2px 6px; border-radius: 4px; }
     .live-dot { width: 10px; height: 10px; background: #ff0000; border-radius: 50%; }
 
-    #ticker-bar {
-      position: fixed; bottom: 0; left: 0; width: 100%; height: 46px;
-      background: #990000; display: flex; align-items: center; z-index: 20; border-top: 2px solid #ffcc00;
-      overflow: hidden; pointer-events: none;
-    }
-    #breaking-tag {
-      background: #ffcc00; color: #000; font-weight: 900; padding: 0 16px;
-      height: 100%; display: flex; align-items: center; font-size: 15px; z-index: 2; white-space: nowrap;
-    }
+    #ticker-bar { position: fixed; bottom: 0; left: 0; width: 100%; height: 46px; background: #990000; display: flex; align-items: center; z-index: 20; border-top: 2px solid #ffcc00; overflow: hidden; pointer-events: none; }
+    #breaking-tag { background: #ffcc00; color: #000; font-weight: 900; padding: 0 16px; height: 100%; display: flex; align-items: center; font-size: 15px; z-index: 2; white-space: nowrap; }
     #ticker-wrap { flex: 1; overflow: hidden; white-space: nowrap; }
-    #marquee-text {
-      display: inline-block; padding-left: 100%; font-size: 20px; font-weight: bold;
-      animation: scroll-left 18s linear infinite;
-    }
-    @keyframes scroll-left {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-100%); }
-    }
+    #marquee-text { display: inline-block; padding-left: 100%; font-size: 20px; font-weight: bold; -webkit-animation: scroll-left 18s linear infinite; animation: scroll-left 18s linear infinite; will-change: transform; }
+    @-webkit-keyframes scroll-left { 0% { -webkit-transform: translateX(0); } 100% { -webkit-transform: translateX(-100%); } }
+    @keyframes scroll-left { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
   </style>
 </head>
 <body>
@@ -133,16 +91,8 @@
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-      {
-        urls: 'turn:openrelay.metered.ca:80',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      },
-      {
-        urls: 'turn:openrelay.metered.ca:443',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-      }
+      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
     ]
   };
 
@@ -162,22 +112,28 @@
   var currentMode = 'standby';
   var activeYtUrl = null;
   var activeYtStartedAt = 0;
+  var lastFrameTime = 0;
+  var lastMarquee = '';
 
   function unlockTV() {
     isUnlocked = true;
     fsOverlay.style.display = 'none';
 
     var elem = document.documentElement;
-    if (elem.requestFullscreen) {
-      elem.requestFullscreen().catch(function() {});
-    } else if (elem.webkitRequestFullscreen) {
-      elem.webkitRequestFullscreen();
-    }
+    try {
+      if (elem.requestFullscreen) {
+        var p = elem.requestFullscreen();
+        if (p && p.catch) p.catch(function() {});
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      }
+    } catch (e) {}
 
     videoEl.muted = false;
     videoEl.volume = 1.0;
     if (videoEl.srcObject) {
-      videoEl.play().catch(function() {});
+      var pl = videoEl.play();
+      if (pl && pl.catch) pl.catch(function() {});
     }
 
     if (currentMode === 'youtube' && activeYtUrl) {
@@ -190,12 +146,8 @@
   fsBtn.addEventListener('click', unlockTV);
   window.addEventListener('load', function() { fsBtn.focus(); });
 
-  // Block TV remote keys only after unlocked
   window.addEventListener('keydown', function(e) {
-    if (!isUnlocked) {
-      unlockTV();
-      return;
-    }
+    if (!isUnlocked) { unlockTV(); return; }
     e.preventDefault();
     e.stopPropagation();
   }, true);
@@ -204,7 +156,7 @@
     currentMode = newMode;
 
     if (newMode !== 'video') {
-      videoEl.pause();
+      try { videoEl.pause(); } catch (e) {}
       videoEl.srcObject = null;
       videoEl.removeAttribute('src');
       videoEl.load();
@@ -231,6 +183,12 @@
     standbyEl.style.display = (newMode === 'standby') ? 'flex' : 'none';
   }
 
+  function extractYouTubeID(url) {
+    var regExp = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([^#&?]{11})/;
+    var match = url.match(regExp);
+    return match ? match[1] : null;
+  }
+
   function playYouTubeAt(url, startSec) {
     var ytId = extractYouTubeID(url);
     if (!ytId) return;
@@ -240,7 +198,7 @@
     activeYtStartedAt = Date.now() - (sec * 1000);
     var muteFlag = isUnlocked ? 0 : 1;
     ytContainer.style.display = 'block';
-    ytContainer.innerHTML = '<iframe src="https://www.youtube.com/embed/' + ytId + '?autoplay=1&mute=' + muteFlag + '&start=' + sec + '&rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>';
+    ytContainer.innerHTML = '<iframe src="https://www.youtube.com/embed/' + ytId + '?autoplay=1&mute=' + muteFlag + '&start=' + sec + '&rel=0&modestbranding=1&playsinline=1&controls=0" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>';
   }
 
   function updateClock() {
@@ -258,12 +216,6 @@
   }
   setInterval(updateClock, 10000);
   updateClock();
-
-  function extractYouTubeID(url) {
-    var regExp = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([^#&?]{11})/;
-    var match = url.match(regExp);
-    return match ? match[1] : null;
-  }
 
   function forceH264(sdp) {
     var lines = sdp.split('\r\n');
@@ -285,30 +237,47 @@
     return lines.join('\r\n');
   }
 
+  // Receiver side buffer ko minimum par rakho -> kam delay
+  function applyLowLatency(call) {
+    try {
+      var pc = call.peerConnection;
+      if (!pc || !pc.getReceivers) return;
+      pc.getReceivers().forEach(function(r) {
+        try { if ('playoutDelayHint' in r) r.playoutDelayHint = 0; } catch (e) {}
+        try { if ('jitterBufferTarget' in r) r.jitterBufferTarget = 0; } catch (e) {}
+      });
+    } catch (e) {}
+  }
+
+  function setBadge(color, text) {
+    connBadge.style.color = color;
+    connBadge.innerText = text;
+  }
+
   function connectToController() {
-    if (!peer || peer.disconnected || peer.destroyed || !peer.id) return;
+    if (!peer || peer.destroyed) return;
+    if (peer.disconnected) { try { peer.reconnect(); } catch (e) {} return; }
+    if (!peer.id) return;
     if (masterConn && masterConn.open) return;
 
+    try { if (masterConn) masterConn.close(); } catch (e) {}
     masterConn = peer.connect(CONTROLLER_ID, { reliable: true });
 
     masterConn.on('open', function() {
-      connBadge.style.color = '#4ade80';
-      connBadge.innerText = '🟢 अंशी TV रिमोट से जुड़ गया है';
+      setBadge('#4ade80', '🟢 अंशी TV रिमोट से जुड़ गया है');
     });
 
     masterConn.on('data', function(data) {
       if (!data) return;
 
-      if (data.forceRefresh) {
-        window.location.reload();
-        return;
+      if (data.forceRefresh) { window.location.reload(); return; }
+
+      if (data.marquee && data.marquee !== lastMarquee) {
+        lastMarquee = data.marquee;
+        marqueeEl.innerText = data.marquee;
       }
 
-      if (data.marquee) marqueeEl.innerText = data.marquee;
-
-      if (data.youtubeUrl) {
-        playYouTubeAt(data.youtubeUrl, data.startSeconds || 0);
-      }
+      if (data.youtubeUrl) playYouTubeAt(data.youtubeUrl, data.startSeconds || 0);
 
       if (data.photo) {
         switchMode('photo');
@@ -316,31 +285,32 @@
         photoEl.src = data.photo;
       }
 
-      if (data.stopAll) {
-        switchMode('standby');
-      }
+      if (data.stopAll) switchMode('standby');
     });
 
     masterConn.on('close', function() {
-      connBadge.style.color = '#facc15';
-      connBadge.innerText = '🟡 रिमोट की प्रतीक्षा है...';
+      setBadge('#facc15', '🟡 रिमोट की प्रतीक्षा है...');
       masterConn = null;
     });
 
-    masterConn.on('error', function() {
-      masterConn = null;
-    });
+    masterConn.on('error', function() { masterConn = null; });
   }
 
   function initTVPeer() {
+    if (peer && !peer.destroyed) { try { peer.destroy(); } catch (e) {} }
     peer = new Peer({ config: ICE_CONFIG });
 
-    peer.on('open', function() {
-      connectToController();
-    });
+    peer.on('open', function() { connectToController(); });
 
     peer.on('disconnected', function() {
-      if (peer && !peer.destroyed) peer.reconnect();
+      if (peer && !peer.destroyed) { try { peer.reconnect(); } catch (e) {} }
+    });
+
+    peer.on('error', function(err) {
+      // peer-unavailable = controller abhi online nahi, retry loop sambhal lega
+      if (err && err.type === 'peer-unavailable') { masterConn = null; return; }
+      setBadge('#facc15', '🟡 नेटवर्क दोबारा जोड़ रहा है...');
+      setTimeout(initTVPeer, 3000);
     });
 
     peer.on('call', function(call) {
@@ -352,21 +322,34 @@
 
       activeIncomingCall = call;
       switchMode('video');
+      activeIncomingCall = call; // switchMode ne reset kiya ho to wapas set
       call.answer(null, { sdpTransform: forceH264 });
+      applyLowLatency(call);
 
       call.on('stream', function(remoteStream) {
         if (activeIncomingCall !== call) return;
+        applyLowLatency(call);
         videoEl.style.display = 'block';
         videoEl.srcObject = remoteStream;
         videoEl.muted = !isUnlocked;
         videoEl.volume = 1.0;
-        videoEl.play().catch(function() {
-          videoEl.muted = true;
-          videoEl.play();
-        });
+        var pl = videoEl.play();
+        if (pl && pl.catch) {
+          pl.catch(function() {
+            videoEl.muted = true;
+            videoEl.play();
+          });
+        }
       });
 
       call.on('close', function() {
+        if (activeIncomingCall === call) {
+          activeIncomingCall = null;
+          switchMode('standby');
+        }
+      });
+
+      call.on('error', function() {
         if (activeIncomingCall === call) {
           activeIncomingCall = null;
           switchMode('standby');
@@ -377,6 +360,19 @@
 
   initTVPeer();
   setInterval(connectToController, 3000);
+
+  // Watchdog: peer mar gaya ho to dubara banao
+  setInterval(function() {
+    if (!peer || peer.destroyed) initTVPeer();
+  }, 5000);
+
+  // Live video tab visible rahe, ye bhi chalu rakho
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden && currentMode === 'video' && videoEl.srcObject) {
+      var pl = videoEl.play();
+      if (pl && pl.catch) pl.catch(function() {});
+    }
+  });
 </script>
 </body>
 </html>
