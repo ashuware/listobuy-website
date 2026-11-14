@@ -32,10 +32,10 @@
 
     #standby-screen {
       position: absolute; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; color: #aaa; z-index: 2;
+      align-items: center; justify-content: center; color: #aaa; z-index: 2; text-align: center; padding: 20px;
     }
     #standby-screen h3 { color: #ffcc00; font-size: 28px; margin-bottom: 8px; }
-    #conn-badge { font-size: 13px; color: #4ade80; margin-top: 6px; }
+    #conn-badge { font-size: 13px; color: #4ade80; margin-top: 8px; font-weight: bold; }
 
     #datetime-box {
       position: absolute; top: 18px; left: 22px; z-index: 20;
@@ -124,7 +124,8 @@
   let ytPlayer = null;
   let ytReady = false;
   let pendingYtId = null;
-  let currentMode = 'standby'; // 'standby' | 'video' | 'photo' | 'youtube'
+  let peer = null;
+  const CHANNEL_ID = 'aashish-domain-live-tv-01';
 
   function onYouTubeIframeAPIReady() {
     ytPlayer = new YT.Player('yt-player', {
@@ -145,169 +146,3 @@
             playYouTubeFast(pendingYtId);
             pendingYtId = null;
           }
-        }
-      }
-    });
-  }
-
-  function switchMode(newMode) {
-    currentMode = newMode;
-
-    // 1. Video layer cleanup (without killing PeerJS listener)
-    if (newMode !== 'video') {
-      videoEl.pause();
-      videoEl.srcObject = null;
-      videoEl.style.display = 'none';
-      if (activeIncomingCall) {
-        const oldCall = activeIncomingCall;
-        activeIncomingCall = null;
-        try { oldCall.close(); } catch (e) {}
-      }
-    }
-
-    // 2. Photo layer cleanup
-    if (newMode !== 'photo') {
-      photoEl.style.display = 'none';
-    }
-
-    // 3. YouTube layer cleanup
-    if (newMode !== 'youtube') {
-      if (ytReady && ytPlayer && typeof ytPlayer.stopVideo === 'function') {
-        try { ytPlayer.stopVideo(); } catch (e) {}
-      }
-      ytWrapper.style.display = 'none';
-    }
-
-    // 4. Standby screen toggle
-    standbyEl.style.display = (newMode === 'standby') ? 'flex' : 'none';
-  }
-
-  function playYouTubeFast(ytId) {
-    switchMode('youtube');
-    ytWrapper.style.display = 'block';
-    if (ytReady && ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
-      ytPlayer.unMute();
-      ytPlayer.setVolume(100);
-      ytPlayer.loadVideoById(ytId);
-    } else {
-      pendingYtId = ytId;
-    }
-  }
-
-  window.onload = () => document.getElementById('start-btn').focus();
-
-  function updateClock() {
-    const now = new Date();
-    const days = ['रविवार', 'सोमवार', 'मंगलवार', 'बुधवार', 'गुरुवार', 'शुक्रवार', 'शनिवार'];
-    const months = ['जनवरी', 'फ़रवरी', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुलाई', 'अगस्त', 'सितंबर', 'अक्टूबर', 'नवंबर', 'दिसंबर'];
-    document.getElementById('live-time').innerText = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
-    document.getElementById('live-day-date').innerText = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
-  }
-  setInterval(updateClock, 5000);
-  updateClock();
-
-  function startTV() {
-    document.getElementById('unmute-overlay').style.display = 'none';
-    videoEl.muted = false;
-    videoEl.volume = 1.0;
-    if (videoEl.srcObject) videoEl.play().catch(() => {});
-    if (ytReady && ytPlayer) {
-      ytPlayer.unMute();
-      ytPlayer.setVolume(100);
-    }
-  }
-
-  function extractYouTubeID(url) {
-    const regExp = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([^#&?]{11})/;
-    const match = url.match(regExp);
-    return match ? match[1] : null;
-  }
-
-  function forceH264(sdp) {
-    const lines = sdp.split('\r\n');
-    const mLineIndex = lines.findIndex(l => l.startsWith('m=video'));
-    if (mLineIndex === -1) return sdp;
-    const h264Payloads = lines
-      .filter(l => l.startsWith('a=rtpmap:') && l.toLowerCase().includes('h264'))
-      .map(l => l.split(':')[1].split(' ')[0]);
-    if (!h264Payloads.length) return sdp;
-    const mParts = lines[mLineIndex].split(' ');
-    const others = mParts.slice(3).filter(p => !h264Payloads.includes(p));
-    lines[mLineIndex] = [...mParts.slice(0, 3), ...h264Payloads, ...others].join(' ');
-    return lines.join('\r\n');
-  }
-
-  const CHANNEL_ID = 'aashish-domain-live-tv-01';
-  const peer = new Peer(CHANNEL_ID, {
-    config: {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ],
-      sdpSemantics: 'unified-plan'
-    }
-  });
-
-  peer.on('open', () => {
-    connBadge.innerText = '🟢 अंशी TV ऑनलाइन है (Ready)';
-  });
-
-  peer.on('disconnected', () => {
-    connBadge.innerText = '🟡 Reconnecting...';
-    peer.reconnect();
-  });
-
-  peer.on('connection', (conn) => {
-    conn.on('data', (data) => {
-      if (data.marquee) marqueeEl.innerText = data.marquee;
-
-      if (data.youtubeUrl) {
-        const ytId = extractYouTubeID(data.youtubeUrl);
-        if (ytId) playYouTubeFast(ytId);
-      }
-
-      if (data.photo) {
-        switchMode('photo');
-        photoEl.src = data.photo;
-        photoEl.style.display = 'block';
-      }
-
-      if (data.stopAll) {
-        switchMode('standby');
-      }
-    });
-  });
-
-  peer.on('call', (call) => {
-    // Close only the previous call if it exists, never touch the new incoming call
-    if (activeIncomingCall && activeIncomingCall !== call) {
-      const prev = activeIncomingCall;
-      activeIncomingCall = null;
-      try { prev.close(); } catch (e) {}
-    }
-
-    activeIncomingCall = call;
-    switchMode('video');
-    call.answer(null, { sdpTransform: forceH264 });
-
-    call.on('stream', (remoteStream) => {
-      if (activeIncomingCall !== call) return;
-      videoEl.style.display = 'block';
-      videoEl.srcObject = remoteStream;
-      videoEl.play().catch(() => {
-        videoEl.muted = true;
-        videoEl.play();
-      });
-    });
-
-    // Only reset to standby if THIS exact active call closed (ignore old delayed close events)
-    call.on('close', () => {
-      if (activeIncomingCall === call) {
-        activeIncomingCall = null;
-        switchMode('standby');
-      }
-    });
-  });
-</script>
-</body>
-</html>

@@ -52,7 +52,7 @@
   <div id="status"></div>
 
   <div class="card">
-    <div class="card-title">1. लाइव कैमरा (Zero-Lag H.264)</div>
+    <div class="card-title">1. लाइव कैमरा</div>
     <div class="row-btns">
       <button class="btn-live" onclick="startCamera()">🔴 Go Live</button>
       <button class="btn-stop" onclick="stopEverything()">⏹ Stop TV</button>
@@ -280,7 +280,6 @@
   }
 
   function stopEverything() {
-    // TV ko pehle stop command bhejein, phir local stream band karein
     sendFast({ stopAll: true }, '⏹ TV तुरंत बंद कर दिया गया।');
     stopLocalMedia();
   }
