@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ListoBuy - Send My List to Shop</title>
+<style>
+  :root { --navy:#1E293B; --green:#2EA44F; --wa:#25D366; --bg:#F4F6F9; --muted:#64748b; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:#0f172a; }
+  .wrap { max-width:560px; margin:0 auto; padding:14px; }
+  header { text-align:center; padding:10px 0 14px; }
+  header h1 { margin:0; font-size:30px; font-weight:900; color:var(--navy); }
+  header h1 span { color:var(--green); }
+  header p { margin:4px 0 0; font-size:11px; letter-spacing:1.5px; font-weight:700; color:var(--muted); }
+  .card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:14px; margin-bottom:12px; box-shadow:0 2px 8px rgba(0,0,0,.04); }
+  h2 { margin:0 0 8px; font-size:15px; }
+  input, select, button { font:inherit; }
+  input, select { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; }
+  input:focus, select:focus { outline:2px solid var(--green); border-color:transparent; }
+  .row { display:flex; gap:8px; } .row > * { min-width:0; } .mt { margin-top:8px; }
+  .btn { border:0; border-radius:8px; padding:10px 14px; font-weight:700; cursor:pointer; color:#fff; background:var(--green); }
+  .btn.big { width:100%; padding:13px; font-size:16px; }
+  .btn.wa { background:var(--wa); } .btn.gray { background:#e2e8f0; color:#334155; } .btn.navy { background:var(--navy); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .small { font-size:12px; color:var(--muted); }
+  ul { list-style:none; margin:0; padding:0; }
+  li { display:flex; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid #f1f5f9; }
+  li:last-child { border-bottom:0; }
+  .name { flex:1; font-weight:600; word-break:break-word; }
+  .qty { display:flex; align-items:center; gap:4px; flex:none; }
+  .qty button { width:26px; height:26px; border:0; border-radius:6px; background:#e2e8f0; font-weight:900; cursor:pointer; }
+  .qty span { min-width:52px; text-align:center; font-size:13px; font-weight:700; }
+  .del { border:0; background:none; color:#ef4444; font-size:18px; cursor:pointer; }
+  .res { padding:10px; border:1px solid #e2e8f0; border-radius:8px; margin-top:6px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; align-items:center; }
+  .res:hover { background:#f8fafc; }
+  .res b { display:block; } .res .tag { font-size:11px; color:var(--green); font-weight:700; white-space:nowrap; }
+  .chosen { background:#ecfdf5; border:1px solid #86efac; border-radius:8px; padding:10px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .empty { text-align:center; color:#94a3b8; padding:14px 0; font-size:13px; }
+  .ok { background:#ecfdf5; border:1px solid #86efac; border-radius:10px; padding:12px; font-size:13px; }
+  .toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:#0f172a; color:#fff; padding:9px 16px; border-radius:20px; font-size:13px; opacity:0; transition:.25s; pointer-events:none; max-width:90%; text-align:center; }
+  .toast.show { opacity:1; }
+  .hide { display:none; }
+  footer { text-align:center; font-size:11px; color:#94a3b8; padding:8px 0 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Listo<span>Buy</span></h1>
+    <p>SHOW MY LIST • SEND TO SHOP</p>
+  </header>
+
+  <!-- 1. My list -->
+  <div class="card">
+    <h2>1. My list <span class="small" id="cnt"></span></h2>
+    <ul id="list"></ul>
+    <div class="empty" id="empty">List is empty. Search a shop below and add products, or type an item.</div>
+    <div class="row mt">
+      <input id="manualName" placeholder="Add item manually" maxlength="60">
+      <input id="manualQty" type="number" min="0" step="any" value="1" style="max-width:70px" inputmode="decimal">
+      <button class="btn gray" id="manualAdd">+</button>
+    </div>
+    <div class="small mt">Your list from the list-maker page is loaded automatically on this device.</div>
+  </div>
+
+  <!-- 2. Shop -->
+  <div class="card">
+    <h2>2. Choose shop</h2>
+    <div id="shopChosen" class="chosen hide"></div>
+    <div id="shopSearchBox">
+      <input id="shopQ" placeholder="🔍 Search shop name..." autocomplete="off">
+      <div id="shopRes"></div>
+    </div>
+  </div>
+
+  <!-- 3. Product search -->
+  <div class="card hide" id="prodCard">
+    <h2>3. Search this shop's products</h2>
+    <input id="prodQ" placeholder="🔍 Search product..." autocomplete="off">
+    <div id="prodRes"></div>
+  </div>
+
+  <!-- 4. Send -->
+  <div class="card">
+    <h2>4. Send</h2>
+    <div class="row">
+      <input id="cName" placeholder="Your name" maxlength="40">
+      <input id="cMobile" placeholder="Mobile (10 digit)" inputmode="numeric" maxlength="10">
+    </div>
+    <button class="btn big mt" id="sendBtn">Send list to shop</button>
+    <button class="btn big wa mt" id="waBtn">Send on WhatsApp (offline)</button>
+    <div class="small mt">Send list to shop delivers it straight to the shop's ListoBuy app. WhatsApp option works without the shop being on the app.</div>
+  </div>
+
+  <div class="card hide" id="done">
+    <div class="ok" id="doneMsg"></div>
+    <a id="appLink2" class="btn big navy mt" style="display:block;text-align:center;text-decoration:none">Download app to track &amp; complete order</a>
+  </div>
+
+  <div class="card" style="text-align:center">
+    <div class="small">Price, confirmation, payment and delivery tracking happen in the app.</div>
+    <a id="appLink" class="btn mt" style="display:inline-block;text-decoration:none">📲 Download ListoBuy App</a>
+  </div>
+
+  <footer>ListoBuy • Powered by BW Soft</footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  // ===== CONFIG: yahan apni values daalo =====
+  var SUPABASE_URL = 'https://glbksmpwnzsadwwvbinw.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_mJPawn8UULiOaWl3nyCICg_90KPatJO';
+  var APP_URL = 'https://YOUR-APP-DOWNLOAD-LINK';   // Play Store / APK link
+  // ===========================================
+
+  var KEY = 'listobuy_draft_v1';       // same key as customer_list.html
+  var CUST_KEY = 'listobuy_customer_v1';
+  var state = { title: '', name: '', items: [], hideDone: false };
+  var shop = null;
+  var $ = function (id) { return document.getElementById(id); };
+
+  function toast(m) { var t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('show'); }, 2200); }
+  function fmt(n) { return (Math.round(n * 100) / 100).toString(); }
+  function stepOf(u) { return (u === 'kg' || u === 'ltr') ? 0.5 : 1; }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  function load() {
+    try { var r = localStorage.getItem(KEY); if (r) { var s = JSON.parse(r); if (s && Array.isArray(s.items)) state = Object.assign(state, s); } } catch (e) {}
+    try { var c = JSON.parse(localStorage.getItem(CUST_KEY) || '{}'); $('cName').value = c.name || state.name || ''; $('cMobile').value = c.mobile || ''; } catch (e) {}
+  }
+  function activeItems() { return state.items.filter(function (i) { return !i.done; }); }
+
+  // ---------- Supabase REST ----------
+  function api(path) {
+    return fetch(SUPABASE_URL + '/rest/v1/' + path, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY } })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+  function configured() { return SUPABASE_URL.indexOf('YOUR-') === -1 && SUPABASE_ANON_KEY.indexOf('YOUR_') === -1; }
+  function debounce(fn, ms) { var t; return function () { var a = arguments, c = this; clearTimeout(t); t = setTimeout(function () { fn.apply(c, a); }, ms); }; }
+
+  // ---------- list render ----------
+  function render() {
+    var ul = $('list'); ul.innerHTML = '';
+    state.items.forEach(function (it, i) {
+      var li = document.createElement('li');
+      var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = it.name;
+      var q = document.createElement('div'); q.className = 'qty';
+      var mi = document.createElement('button'); mi.textContent = '−';
+      var lb = document.createElement('span'); lb.textContent = fmt(it.qty) + ' ' + it.unit;
+      var pl = document.createElement('button'); pl.textContent = '+';
+      mi.onclick = function () { var v = it.qty - stepOf(it.unit); if (v > 0) { it.qty = v; save(); render(); } };
+      pl.onclick = function () { it.qty += stepOf(it.unit); save(); render(); };
+      q.append(mi, lb, pl);
+      var d = document.createElement('button'); d.className = 'del'; d.textContent = '✕';
+      d.onclick = function () { state.items.splice(i, 1); save(); render(); };
+      li.append(nm, q, d); ul.appendChild(li);
+    });
+    $('empty').style.display = state.items.length ? 'none' : 'block';
+    $('cnt').textContent = '(' + state.items.length + ')';
+  }
+  function addToList(name, qty, unit) {
+    unit = unit || 'pcs';
+    var ex = state.items.find(function (x) { return x.name.toLowerCase() === name.toLowerCase() && x.unit === unit; });
+    if (ex) { ex.qty += qty; ex.done = false; } else state.items.push({ name: name, qty: qty, unit: unit, done: false });
+    save(); render();
+  }
+
+  // ---------- shop search ----------
+  function renderShopChosen() {
+    var c = $('shopChosen');
+    if (!shop) { c.classList.add('hide'); $('shopSearchBox').classList.remove('hide'); $('prodCard').classList.add('hide'); return; }
+    c.classList.remove('hide'); $('shopSearchBox').classList.add('hide'); $('prodCard').classList.remove('hide');
+    c.innerHTML = '';
+    var l = document.createElement('div');
+    var b = document.createElement('b'); b.textContent = '🏪 ' + shop.shop_name;
+    var s = document.createElement('div'); s.className = 'small'; s.textContent = shop.address || '';
+    l.append(b, s);
+    var btn = document.createElement('button'); btn.className = 'btn gray'; btn.textContent = 'Change';
+    btn.onclick = function () { shop = null; $('prodRes').innerHTML = ''; $('prodQ').value = ''; renderShopChosen(); };
+    c.append(l, btn);
+  }
+  var searchShops = debounce(function () {
+    var q = $('shopQ').value.trim(), box = $('shopRes'); box.innerHTML = '';
+    if (q.length < 2) return;
+    if (!configured()) { box.innerHTML = '<div class="empty">Set SUPABASE_URL and key in the page config.</div>'; return; }
+    api('shops?select=id,shop_name,phone,address,shop_type&or=(status.is.null,status.eq.Active)&shop_name=ilike.*' + encodeURIComponent(q) + '*&limit=10')
+      .then(function (rows) {
+        rows = rows.filter(function (r) { return r.shop_type !== 'Restaurant'; });
+        if (!rows.length) { box.innerHTML = '<div class="empty">No shop found.</div>'; return; }
+        rows.forEach(function (r) {
+          var d = document.createElement('div'); d.className = 'res';
+          var l = document.createElement('div'); var b = document.createElement('b'); b.textContent = r.shop_name;
+          var s = document.createElement('span'); s.className = 'small'; s.textContent = r.address || '';
+          l.append(b, s);
+          var t = document.createElement('span'); t.className = 'tag'; t.textContent = 'Select';
+          d.append(l, t); d.onclick = function () { shop = r; box.innerHTML = ''; $('shopQ').value = ''; renderShopChosen(); };
+          box.appendChild(d);
+        });
+      }).catch(function () { box.innerHTML = '<div class="empty">Could not load shops. Check internet.</div>'; });
+  }, 350);
+
+  // ---------- product search ----------
+  var searchProds = debounce(function () {
+    var q = $('prodQ').value.trim(), box = $('prodRes'); box.innerHTML = '';
+    if (!shop || q.length < 2) return;
+    api('products?select=item_name,selling_price,unit&shop_name=eq.' + encodeURIComponent(shop.shop_name) + '&item_name=ilike.*' + encodeURIComponent(q) + '*&limit=10')
+      .then(function (rows) {
+        if (!rows.length) { box.innerHTML = '<div class="empty">Not in this shop\'s catalogue. Add it manually above.</div>'; return; }
+        rows.forEach(function (r) {
+          var d = document.createElement('div'); d.className = 'res';
+          var l = document.createElement('div'); var b = document.createElement('b'); b.textContent = r.item_name;
+          var s = document.createElement('span'); s.className = 'small'; s.textContent = '₹' + r.selling_price + ' / ' + (r.unit || 'unit');
+          l.append(b, s);
+          var t = document.createElement('span'); t.className = 'tag'; t.textContent = '+ Add';
+          d.append(l, t);
+          d.onclick = function () { addToList(r.item_name, 1, r.unit || 'pcs'); toast(r.item_name + ' added'); };
+          box.appendChild(d);
+        });
+      }).catch(function () { box.innerHTML = '<div class="empty">Could not load products.</div>'; });
+  }, 350);
+
+  // ---------- send ----------
+  function getCust() {
+    var name = $('cName').value.trim(), mob = $('cMobile').value.replace(/\D/g, '');
+    if (!name) { toast('Enter your name'); return null; }
+    if (mob.length !== 10) { toast('Enter 10 digit mobile number'); return null; }
+    try { localStorage.setItem(CUST_KEY, JSON.stringify({ name: name, mobile: mob })); } catch (e) {}
+    return { name: name, mobile: mob };
+  }
+  function precheck() {
+    if (!activeItems().length) { toast('Add at least one item'); return false; }
+    if (!shop) { toast('Choose a shop first'); return false; }
+    return true;
+  }
+  function showDone(msg) {
+    $('doneMsg').textContent = msg; $('done').classList.remove('hide');
+    $('done').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  $('sendBtn').onclick = function () {
+    if (!precheck()) return; var c = getCust(); if (!c) return;
+    if (!configured()) { toast('Set Supabase config in the page first'); return; }
+    var btn = this; btn.disabled = true; btn.textContent = 'Sending...';
+    var orderId = 'ORD' + Date.now().toString().slice(-8);
+    var body = {
+      order_id: orderId, shop_name: shop.shop_name,
+      customer_name: c.name, customer_mobile: c.mobile,
+      items: activeItems().map(function (i) { return { name: i.name, qty: fmt(i.qty) + ' ' + i.unit, price: 0, available: true }; }),
+      status: 'Order Sent'
+    };
+    fetch(SUPABASE_URL + '/rest/v1/orders', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      showDone('✅ List sent to ' + shop.shop_name + ' (Order #' + orderId + '). Download the app to track the order, confirm items and pay.');
+    }).catch(function () {
+      toast('Could not send. Use the WhatsApp option instead.');
+    }).then(function () { btn.disabled = false; btn.textContent = 'Send list to shop'; });
+  };
+  $('waBtn').onclick = function () {
+    if (!activeItems().length) { toast('Add at least one item'); return; }
+    var c = getCust(); if (!c) return;
+    var lines = ['🛒 *Order list*' + (shop ? ' for ' + shop.shop_name : ''), 'From: ' + c.name + ' (' + c.mobile + ')', ''];
+    activeItems().forEach(function (i, n) { lines.push((n + 1) + '. ' + i.name + ' - ' + fmt(i.qty) + ' ' + i.unit); });
+    lines.push('', 'Total items: ' + activeItems().length, '_Made with ListoBuy_');
+    var phone = shop && shop.phone ? String(shop.phone).replace(/\D/g, '') : '';
+    if (phone.length === 10) phone = '91' + phone;
+    window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+    showDone('List opened in WhatsApp. Download the app for tracking and payment.');
+  };
+
+  // ---------- init ----------
+  $('appLink').href = APP_URL; $('appLink2').href = APP_URL;
+  $('manualAdd').onclick = function () {
+    var n = $('manualName').value.trim(), q = parseFloat($('manualQty').value);
+    if (!n) { toast('Enter item name'); return; }
+    addToList(n, q > 0 ? q : 1, 'pcs'); $('manualName').value = ''; $('manualQty').value = 1;
+  };
+  $('manualName').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); $('manualAdd').click(); } };
+  $('shopQ').oninput = searchShops; $('prodQ').oninput = searchProds;
+  load(); render(); renderShopChosen();
+})();
+</script>
+</body>
+</html>

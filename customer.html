@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ListoBuy - Make Your List</title>
+<style>
+  :root { --navy:#1E293B; --green:#2EA44F; --wa:#25D366; --bg:#F4F6F9; --muted:#64748b; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:#0f172a; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 14px; }
+  header { text-align:center; padding: 10px 0 14px; }
+  header h1 { margin:0; font-size:30px; font-weight:900; color:var(--navy); }
+  header h1 span { color:var(--green); }
+  header p { margin:4px 0 0; font-size:11px; letter-spacing:1.5px; font-weight:700; color:var(--muted); }
+  .card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:14px; margin-bottom:12px; box-shadow:0 2px 8px rgba(0,0,0,.04); }
+  input, select, button { font: inherit; }
+  input, select { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; }
+  input:focus, select:focus { outline:2px solid var(--green); border-color:transparent; }
+  .row { display:flex; gap:8px; }
+  .row > * { min-width:0; }
+  .mt { margin-top:8px; }
+  .btn { border:0; border-radius:8px; padding:10px 14px; font-weight:700; cursor:pointer; color:#fff; background:var(--green); }
+  .btn.wa { background:var(--wa); width:100%; padding:13px; font-size:16px; }
+  .btn.gray { background:#e2e8f0; color:#334155; }
+  .btn.red { background:#fee2e2; color:#b91c1c; }
+  .toolbar { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; }
+  .toolbar b { font-size:14px; }
+  .small { font-size:12px; color:var(--muted); }
+  ul { list-style:none; margin:0; padding:0; }
+  li { display:flex; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid #f1f5f9; }
+  li:last-child { border-bottom:0; }
+  li.done .name { text-decoration:line-through; color:#94a3b8; }
+  li input[type=checkbox] { width:20px; height:20px; accent-color:var(--green); flex:none; }
+  .name { flex:1; font-weight:600; word-break:break-word; }
+  .qty { display:flex; align-items:center; gap:4px; flex:none; }
+  .qty button { width:26px; height:26px; border:0; border-radius:6px; background:#e2e8f0; font-weight:900; cursor:pointer; }
+  .qty span { min-width:48px; text-align:center; font-size:13px; font-weight:700; }
+  .del { border:0; background:none; color:#ef4444; font-size:18px; cursor:pointer; flex:none; }
+  .empty { text-align:center; color:#94a3b8; padding:18px 0; font-size:13px; }
+  .toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:#0f172a; color:#fff; padding:9px 16px; border-radius:20px; font-size:13px; opacity:0; transition:.25s; pointer-events:none; }
+  .toast.show { opacity:1; }
+  footer { text-align:center; font-size:11px; color:#94a3b8; padding:8px 0 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Listo<span>Buy</span></h1>
+    <p>MAKE LIST • SHARE • BUY</p>
+  </header>
+
+  <div class="card">
+    <div class="row">
+      <input id="listTitle" placeholder="List name (e.g. Monthly Grocery)" maxlength="60">
+      <input id="custName" placeholder="Your name (optional)" maxlength="40">
+    </div>
+  </div>
+
+  <div class="card">
+    <input id="itemName" list="suggest" placeholder="Type item name and press Add..." autocomplete="off">
+    <datalist id="suggest"></datalist>
+    <div class="row mt">
+      <input id="itemQty" type="number" min="0" step="any" value="1" inputmode="decimal" style="max-width:90px">
+      <select id="itemUnit"></select>
+      <button class="btn" id="addBtn" style="flex:none">+ Add</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <b id="countLabel">Your list (0)</b>
+      <div>
+        <button class="btn gray" id="hideDone" style="padding:6px 10px;font-size:12px">Hide ticked</button>
+        <button class="btn red" id="clearBtn" style="padding:6px 10px;font-size:12px">New list</button>
+      </div>
+    </div>
+    <input id="search" placeholder="🔍 Search in your list...">
+    <ul id="list" class="mt"></ul>
+    <div class="empty" id="empty">No items yet. Add your first item above.</div>
+    <div class="small" id="saved" style="margin-top:6px">Draft is saved automatically on this device.</div>
+  </div>
+
+  <div class="card">
+    <button class="btn wa" id="waBtn">Share on WhatsApp</button>
+    <div class="row mt">
+      <button class="btn gray" id="copyBtn" style="flex:1">Copy text</button>
+      <button class="btn gray" id="shareBtn" style="flex:1">More share options</button>
+    </div>
+    <div class="small mt">Pick any contact in WhatsApp (shopkeeper, family, friend). The receiver can simply forward it to the shop.</div>
+  </div>
+
+  <footer>ListoBuy • Powered by BW Soft</footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  var KEY = 'listobuy_draft_v1';
+  var UNITS = ['pcs', 'kg', 'gm', 'ltr', 'ml', 'packet', 'dozen', 'box', 'bottle'];
+  var COMMON = ['Rice','Basmati Rice','Wheat Flour (Atta)','Maida','Sooji','Besan','Sugar','Salt','Tea','Coffee','Milk','Curd','Paneer','Butter','Ghee','Cooking Oil','Mustard Oil','Toor Dal','Moong Dal','Masoor Dal','Chana Dal','Urad Dal','Rajma','Chole','Poha','Oats','Bread','Eggs','Onion','Potato','Tomato','Garlic','Ginger','Green Chilli','Lemon','Coriander','Banana','Apple','Turmeric Powder','Red Chilli Powder','Coriander Powder','Garam Masala','Jeera','Mustard Seeds','Biscuits','Namkeen','Maggi','Soap','Shampoo','Toothpaste','Detergent Powder','Dishwash Liquid','Floor Cleaner','Tissue Paper','Agarbatti','Matchbox','Sanitary Pads','Cold Drink','Water Bottle'];
+
+  var state = { title: '', name: '', items: [], hideDone: false };
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- storage ----------
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); $('saved').textContent = '✔ Draft saved on this device.'; }
+    catch (e) { $('saved').textContent = 'Could not save draft (storage blocked).'; }
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) { var s = JSON.parse(raw); if (s && Array.isArray(s.items)) state = Object.assign(state, s); }
+    } catch (e) {}
+  }
+
+  // ---------- helpers ----------
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('show'); }, 1800);
+  }
+  function fmt(n) { return (Math.round(n * 100) / 100).toString(); }
+  function step(unit) { return (unit === 'kg' || unit === 'ltr') ? 0.5 : 1; }
+
+  // ---------- render ----------
+  function render() {
+    var q = $('search').value.trim().toLowerCase();
+    var ul = $('list'); ul.innerHTML = '';
+    var shown = 0;
+    state.items.forEach(function (it, i) {
+      if (state.hideDone && it.done) return;
+      if (q && it.name.toLowerCase().indexOf(q) === -1) return;
+      shown++;
+      var li = document.createElement('li'); if (it.done) li.className = 'done';
+
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!it.done;
+      cb.onchange = function () { it.done = cb.checked; save(); render(); };
+
+      var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = it.name;
+
+      var qty = document.createElement('div'); qty.className = 'qty';
+      var minus = document.createElement('button'); minus.textContent = '−';
+      var lbl = document.createElement('span'); lbl.textContent = fmt(it.qty) + ' ' + it.unit;
+      var plus = document.createElement('button'); plus.textContent = '+';
+      minus.onclick = function () { var v = it.qty - step(it.unit); if (v > 0) { it.qty = v; save(); render(); } };
+      plus.onclick = function () { it.qty = it.qty + step(it.unit); save(); render(); };
+      qty.append(minus, lbl, plus);
+
+      var del = document.createElement('button'); del.className = 'del'; del.textContent = '✕'; del.title = 'Remove';
+      del.onclick = function () { state.items.splice(i, 1); save(); render(); };
+
+      li.append(cb, nm, qty, del); ul.appendChild(li);
+    });
+    $('empty').style.display = shown ? 'none' : 'block';
+    $('empty').textContent = state.items.length ? 'No matching items.' : 'No items yet. Add your first item above.';
+    $('countLabel').textContent = 'Your list (' + state.items.length + ')';
+    $('hideDone').textContent = state.hideDone ? 'Show ticked' : 'Hide ticked';
+  }
+
+  // ---------- add item ----------
+  function addItem() {
+    var name = $('itemName').value.trim().replace(/\s+/g, ' ');
+    var qty = parseFloat($('itemQty').value);
+    var unit = $('itemUnit').value;
+    if (!name) { toast('Enter item name'); $('itemName').focus(); return; }
+    if (!(qty > 0)) qty = 1;
+    var existing = state.items.find(function (x) { return x.name.toLowerCase() === name.toLowerCase() && x.unit === unit; });
+    if (existing) { existing.qty += qty; existing.done = false; }
+    else state.items.push({ name: name, qty: qty, unit: unit, done: false });
+    $('itemName').value = ''; $('itemQty').value = 1; $('itemName').focus();
+    save(); render();
+  }
+
+  // ---------- share text ----------
+  function buildText() {
+    var title = (state.title || '').trim() || 'My Shopping List';
+    var lines = ['🛒 *' + title + '*'];
+    if ((state.name || '').trim()) lines.push('From: ' + state.name.trim());
+    lines.push('');
+    var n = 0;
+    state.items.forEach(function (it) {
+      if (it.done) return;
+      n++; lines.push(n + '. ' + it.name + ' - ' + fmt(it.qty) + ' ' + it.unit);
+    });
+    lines.push('');
+    lines.push('Total items: ' + n);
+    lines.push('_Made with ListoBuy_');
+    return { text: lines.join('\n'), count: n };
+  }
+  function ready() {
+    var b = buildText();
+    if (!b.count) { toast('Add at least one item (unticked) to share'); return null; }
+    return b.text;
+  }
+
+  // ---------- init ----------
+  function init() {
+    load();
+    UNITS.forEach(function (u) { var o = document.createElement('option'); o.value = u; o.textContent = u; $('itemUnit').appendChild(o); });
+    COMMON.forEach(function (c) { var o = document.createElement('option'); o.value = c; $('suggest').appendChild(o); });
+    $('listTitle').value = state.title || ''; $('custName').value = state.name || '';
+
+    $('listTitle').oninput = function () { state.title = this.value; save(); };
+    $('custName').oninput = function () { state.name = this.value; save(); };
+    $('addBtn').onclick = addItem;
+    $('itemName').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); addItem(); } };
+    $('itemQty').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); addItem(); } };
+    $('search').oninput = render;
+    $('hideDone').onclick = function () { state.hideDone = !state.hideDone; save(); render(); };
+    $('clearBtn').onclick = function () {
+      if (!state.items.length && !state.title) return;
+      if (confirm('Start a new list? Current list will be cleared.')) {
+        state = { title: '', name: state.name, items: [], hideDone: false };
+        $('listTitle').value = ''; $('search').value = ''; save(); render();
+      }
+    };
+    $('waBtn').onclick = function () {
+      var t = ready(); if (!t) return;
+      window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
+    };
+    $('copyBtn').onclick = function () {
+      var t = ready(); if (!t) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(t).then(function () { toast('List copied'); }, function () { toast('Copy failed'); });
+      } else {
+        var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); toast('List copied'); } catch (e) { toast('Copy failed'); }
+        document.body.removeChild(ta);
+      }
+    };
+    $('shareBtn').onclick = function () {
+      var t = ready(); if (!t) return;
+      if (navigator.share) navigator.share({ text: t }).catch(function () {});
+      else toast('Sharing not supported here, use WhatsApp or Copy');
+    };
+    render();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
